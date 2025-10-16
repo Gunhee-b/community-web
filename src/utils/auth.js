@@ -32,7 +32,12 @@ export const loginUser = async ({ username, password }) => {
   })
 
   if (error) {
+    console.error('Supabase RPC error:', error)
     throw new Error(error.message || '로그인 중 오류가 발생했습니다')
+  }
+
+  if (!data) {
+    throw new Error('서버 응답이 없습니다')
   }
 
   if (!data.success) {

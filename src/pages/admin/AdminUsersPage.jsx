@@ -3,10 +3,16 @@ import { supabase } from '../../lib/supabase'
 import { formatDate } from '../../utils/date'
 import Card from '../../components/common/Card'
 import Loading from '../../components/common/Loading'
+import Modal from '../../components/common/Modal'
+import Button from '../../components/common/Button'
+import { useAuthStore } from '../../store/authStore'
 
 function AdminUsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const currentUser = useAuthStore((state) => state.user)
 
   useEffect(() => {
     fetchUsers()
@@ -14,30 +20,72 @@ function AdminUsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const { data } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false })
+      // Use RPC function to bypass RLS
+      const { data, error } = await supabase.rpc('admin_get_all_users_secure', {
+        p_user_id: currentUser?.id
+      })
+
+      if (error) {
+        console.error('Error fetching users:', error)
+        throw error
+      }
 
       setUsers(data || [])
     } catch (error) {
       console.error('Error fetching users:', error)
+      alert('회원 목록을 불러오는 중 오류가 발생했습니다: ' + (error.message || ''))
     } finally {
       setLoading(false)
     }
   }
 
   const toggleUserStatus = async (userId, currentStatus) => {
-    try {
-      await supabase
-        .from('users')
-        .update({ is_active: !currentStatus })
-        .eq('id', userId)
+    // Prevent admin from deactivating themselves
+    if (userId === currentUser?.id) {
+      alert('자신의 계정은 비활성화할 수 없습니다')
+      return
+    }
 
+    try {
+      const functionName = currentStatus ? 'deactivate_user' : 'activate_user'
+      const { error } = await supabase.rpc(functionName, { user_id: userId })
+
+      if (error) throw error
+
+      alert(currentStatus ? '회원이 비활성화되었습니다' : '회원이 활성화되었습니다')
       fetchUsers()
     } catch (error) {
       console.error('Error updating user status:', error)
-      alert('회원 상태 변경 중 오류가 발생했습니다')
+      alert(error.message || '회원 상태 변경 중 오류가 발생했습니다')
+    }
+  }
+
+  const handleDeleteClick = (user) => {
+    if (user.id === currentUser?.id) {
+      alert('자신의 계정은 삭제할 수 없습니다')
+      return
+    }
+    setSelectedUser(user)
+    setDeleteModalOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedUser) return
+
+    try {
+      const { error } = await supabase.rpc('delete_user_permanently', {
+        user_id: selectedUser.id
+      })
+
+      if (error) throw error
+
+      alert('회원이 영구 삭제되었습니다')
+      setDeleteModalOpen(false)
+      setSelectedUser(null)
+      fetchUsers()
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      alert(error.message || '회원 삭제 중 오류가 발생했습니다')
     }
   }
 
@@ -64,7 +112,7 @@ function AdminUsersPage() {
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id} className="border-b">
+                <tr key={user.id} className="border-b hover:bg-gray-50">
                   <td className="py-3 px-4">{user.username}</td>
                   <td className="py-3 px-4">{user.kakao_nickname}</td>
                   <td className="py-3 px-4">
@@ -93,12 +141,30 @@ function AdminUsersPage() {
                     </span>
                   </td>
                   <td className="py-3 px-4">
-                    <button
-                      onClick={() => toggleUserStatus(user.id, user.is_active)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      {user.is_active ? '비활성화' : '활성화'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => toggleUserStatus(user.id, user.is_active)}
+                        disabled={user.id === currentUser?.id}
+                        className={`text-sm ${
+                          user.id === currentUser?.id
+                            ? 'text-gray-400 cursor-not-allowed'
+                            : 'text-blue-600 hover:text-blue-800'
+                        }`}
+                      >
+                        {user.is_active ? '비활성화' : '활성화'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(user)}
+                        disabled={user.id === currentUser?.id}
+                        className={`text-sm ${
+                          user.id === currentUser?.id
+                            ? 'text-gray-400 cursor-not-allowed'
+                            : 'text-red-600 hover:text-red-800'
+                        }`}
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -106,6 +172,36 @@ function AdminUsersPage() {
           </table>
         </div>
       </Card>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="회원 삭제 확인"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            정말로 <strong>{selectedUser?.username}</strong> 회원을 영구 삭제하시겠습니까?
+          </p>
+          <p className="text-sm text-red-600">
+            ⚠️ 이 작업은 되돌릴 수 없습니다. 회원의 모든 데이터가 삭제됩니다.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteConfirm}
+            >
+              삭제
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

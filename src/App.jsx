@@ -23,21 +23,22 @@ function App() {
 
   const refreshUserData = async (userId) => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
+      const { data, error } = await supabase.rpc('get_user_by_id', {
+        p_user_id: userId
+      })
 
-      if (!error && data) {
-        // Only update if user is still active
-        if (data.is_active) {
-          setUser(data)
-        } else {
-          setUser(null)
-        }
+      if (error) {
+        console.error('Error refreshing user data:', error)
+        setUser(null)
+        return
+      }
+
+      if (data.success && data.user) {
+        // User is active and valid, update the store
+        setUser(data.user)
       } else {
-        // User not found or error, clear session
+        // User not found or inactive, clear session
+        console.log('Session invalid:', data.error)
         setUser(null)
       }
     } catch (error) {

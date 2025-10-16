@@ -36,6 +36,13 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     return <Navigate to="/login" replace />
   }
 
+  // Check if user account is active
+  if (user.is_active === false) {
+    // Log out inactive users
+    useAuthStore.getState().logout()
+    return <Navigate to="/login" replace />
+  }
+
   if (requireAdmin && user.role !== 'admin') {
     return <Navigate to="/" replace />
   }
