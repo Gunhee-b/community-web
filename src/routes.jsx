@@ -1,0 +1,121 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuthStore } from './store/authStore'
+
+// Layouts
+import MainLayout from './components/common/MainLayout'
+import AdminLayout from './components/common/AdminLayout'
+
+// Auth Pages
+import LoginPage from './pages/auth/LoginPage'
+import SignupPage from './pages/auth/SignupPage'
+
+// Main Pages
+import HomePage from './pages/HomePage'
+import ProfilePage from './pages/ProfilePage'
+
+// Voting Pages
+import VotePage from './pages/voting/VotePage'
+import NominatePage from './pages/voting/NominatePage'
+
+// Meeting Pages
+import MeetingsPage from './pages/meetings/MeetingsPage'
+import CreateMeetingPage from './pages/meetings/CreateMeetingPage'
+import MeetingDetailPage from './pages/meetings/MeetingDetailPage'
+
+// Admin Pages
+import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminVotesPage from './pages/admin/AdminVotesPage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
+import AdminInvitesPage from './pages/admin/AdminInvitesPage'
+
+// Protected Route Component
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
+  const user = useAuthStore((state) => state.user)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (requireAdmin && user.role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
+
+  return children
+}
+
+// Public Route Component (redirect if already logged in)
+const PublicRoute = ({ children }) => {
+  const user = useAuthStore((state) => state.user)
+
+  if (user) {
+    return <Navigate to="/" replace />
+  }
+
+  return children
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicRoute>
+            <SignupPage />
+          </PublicRoute>
+        }
+      />
+
+      {/* Protected Routes */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<HomePage />} />
+        <Route path="profile" element={<ProfilePage />} />
+
+        {/* Voting Routes */}
+        <Route path="vote" element={<VotePage />} />
+        <Route path="vote/nominate" element={<NominatePage />} />
+
+        {/* Meeting Routes */}
+        <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/create" element={<CreateMeetingPage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
+      </Route>
+
+      {/* Admin Routes */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute requireAdmin>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="votes" element={<AdminVotesPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
+        <Route path="invites" element={<AdminInvitesPage />} />
+      </Route>
+
+      {/* 404 */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+export default AppRoutes
