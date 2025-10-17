@@ -17,6 +17,8 @@ function AdminVotesPage() {
     startDate: '',
     endDate: '',
   })
+  const [selectedPost, setSelectedPost] = useState(null)
+  const [showPostDetailModal, setShowPostDetailModal] = useState(false)
 
   useEffect(() => {
     fetchVotingPeriods()
@@ -137,6 +139,63 @@ function AdminVotesPage() {
     } catch (error) {
       console.error('Error creating voting period:', error)
       alert(`투표 기간 생성 중 오류가 발생했습니다: ${error.message}`)
+    }
+  }
+
+  const handleDeletePeriod = async (periodId) => {
+    // Safety check
+    if (!periodId) {
+      alert('삭제할 투표 ID가 없습니다.')
+      return
+    }
+
+    // Find the period to show details in confirmation
+    const period = votingPeriods.find(p => p.id === periodId)
+    if (!period) {
+      alert('투표를 찾을 수 없습니다.')
+      return
+    }
+
+    const confirmMessage = `다음 투표를 삭제하시겠습니까?\n\n제목: ${period.title || '베스트 글 투표'}\n기간: ${formatDate(period.start_date, 'yyyy-MM-dd')} ~ ${formatDate(period.end_date, 'yyyy-MM-dd')}\n\n⚠️ 이 작업은 되돌릴 수 없으며, 관련된 모든 글과 투표가 삭제됩니다.`
+
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    try {
+      console.log('Attempting to delete period:', periodId)
+
+      // Double check we have a valid UUID
+      if (typeof periodId !== 'string' || periodId.length !== 36) {
+        alert('잘못된 투표 ID입니다.')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('voting_periods')
+        .delete()
+        .eq('id', periodId)
+        .select()
+
+      console.log('Delete result:', { data, error })
+
+      if (error) {
+        console.error('Error deleting period:', error)
+        console.error('Error details:', JSON.stringify(error, null, 2))
+        alert(`삭제 실패: ${error.message}`)
+        return
+      }
+
+      if (data && data.length === 0) {
+        alert('투표가 삭제되지 않았습니다. 이미 삭제되었거나 권한이 없습니다.')
+        return
+      }
+
+      alert(`투표 "${period.title || '베스트 글 투표'}"가 삭제되었습니다.`)
+      fetchVotingPeriods()
+    } catch (error) {
+      console.error('Error deleting voting period:', error)
+      alert('투표 기간 삭제 중 오류가 발생했습니다: ' + error.message)
     }
   }
 
@@ -368,6 +427,66 @@ function AdminVotesPage() {
         </div>
       )}
 
+      {/* Post Detail Modal */}
+      {showPostDetailModal && selectedPost && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white pb-4 border-b mb-6">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                    {selectedPost.title}
+                  </h2>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>작성자: {selectedPost.author_name || selectedPost.author?.username}</span>
+                    <span>•</span>
+                    <span>제출: {selectedPost.author?.username}</span>
+                    <span>•</span>
+                    <span>{formatDate(selectedPost.created_at)}</span>
+                    <span>•</span>
+                    <span className="font-semibold text-green-600">
+                      추천 {selectedPost.votes?.[0]?.count || 0}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowPostDetailModal(false)
+                    setSelectedPost(null)
+                    setShowPostsModal(true)
+                  }}
+                >
+                  닫기
+                </Button>
+              </div>
+            </div>
+
+            {/* Image if exists */}
+            {selectedPost.image_url && (
+              <div className="mb-6">
+                <img
+                  src={selectedPost.image_url}
+                  alt={selectedPost.title}
+                  className="w-full max-w-3xl h-auto rounded-lg border border-gray-200"
+                  onError={(e) => {
+                    e.target.style.display = 'none'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="prose prose-lg max-w-none">
+              <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                {selectedPost.content}
+              </p>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Posts List Modal */}
       {showPostsModal && selectedPeriodPosts && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -405,7 +524,14 @@ function AdminVotesPage() {
                         <div className="text-xs text-gray-500">순위</div>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">
+                        <h3
+                          className="text-lg font-bold text-gray-900 mb-2 hover:text-blue-600 cursor-pointer"
+                          onClick={() => {
+                            setSelectedPost(post)
+                            setShowPostDetailModal(true)
+                            setShowPostsModal(false)
+                          }}
+                        >
                           {post.title}
                         </h3>
                         <p className="text-gray-600 mb-3 whitespace-pre-line line-clamp-3">
@@ -506,6 +632,14 @@ function AdminVotesPage() {
                     투표 종료
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeletePeriod(period.id)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  삭제
+                </Button>
               </div>
             </div>
           </Card>

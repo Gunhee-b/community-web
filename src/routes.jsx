@@ -16,11 +16,15 @@ import ProfilePage from './pages/ProfilePage'
 // Voting Pages
 import VotePage from './pages/voting/VotePage'
 import NominatePage from './pages/voting/NominatePage'
+import BestPostsPage from './pages/voting/BestPostsPage'
 
 // Meeting Pages
 import MeetingsPage from './pages/meetings/MeetingsPage'
 import CreateMeetingPage from './pages/meetings/CreateMeetingPage'
 import MeetingDetailPage from './pages/meetings/MeetingDetailPage'
+
+// Test Pages
+import StorageTest from './pages/StorageTest'
 
 // Admin Pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
@@ -97,11 +101,15 @@ function AppRoutes() {
         {/* Voting Routes */}
         <Route path="vote" element={<VotePage />} />
         <Route path="vote/nominate" element={<NominatePage />} />
+        <Route path="best-posts" element={<BestPostsPage />} />
 
         {/* Meeting Routes */}
         <Route path="meetings" element={<MeetingsPage />} />
         <Route path="meetings/create" element={<CreateMeetingPage />} />
         <Route path="meetings/:id" element={<MeetingDetailPage />} />
+
+        {/* Test Routes */}
+        <Route path="storage-test" element={<StorageTest />} />
       </Route>
 
       {/* Admin Routes */}

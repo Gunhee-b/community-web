@@ -48,7 +48,10 @@ function AdminUsersPage() {
 
     try {
       const functionName = currentStatus ? 'deactivate_user' : 'activate_user'
-      const { error } = await supabase.rpc(functionName, { user_id: userId })
+      const { error } = await supabase.rpc(functionName, {
+        user_id: userId,
+        admin_user_id: currentUser.id
+      })
 
       if (error) throw error
 
@@ -74,7 +77,8 @@ function AdminUsersPage() {
 
     try {
       const { error } = await supabase.rpc('delete_user_permanently', {
-        user_id: selectedUser.id
+        user_id: selectedUser.id,
+        admin_user_id: currentUser.id
       })
 
       if (error) throw error

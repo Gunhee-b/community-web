@@ -37,8 +37,8 @@ function HomePage() {
           participants:meeting_participants(count)
         `)
         .eq('status', 'recruiting')
-        .gte('meeting_datetime', new Date().toISOString())
-        .order('meeting_datetime', { ascending: true })
+        .gte('start_datetime', new Date().toISOString())
+        .order('start_datetime', { ascending: true })
         .limit(3)
 
       setMeetings(meetingsData || [])
@@ -143,14 +143,14 @@ function HomePage() {
                       {meeting.purpose === 'coffee' ? '☕ 커피' : '🍺 술'}
                     </span>
                     <span className="ml-2 text-sm text-gray-500">
-                      {getDday(meeting.meeting_datetime)}
+                      {getDday(meeting.start_datetime)}
                     </span>
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-1">
                     {meeting.location}
                   </h3>
                   <p className="text-sm text-gray-600 mb-2">
-                    {formatDate(meeting.meeting_datetime, 'MM월 dd일 HH:mm')}
+                    {formatDate(meeting.start_datetime, 'MM월 dd일 HH:mm')}
                   </p>
                   <p className="text-sm text-gray-600">
                     호스트: {meeting.host?.username}

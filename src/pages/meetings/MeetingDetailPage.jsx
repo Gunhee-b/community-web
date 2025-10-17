@@ -24,8 +24,22 @@ function MeetingDetailPage() {
 
   useEffect(() => {
     fetchMeetingData()
-    subscribeToChats()
-  }, [id])
+
+    // Try Realtime subscription
+    const cleanup = subscribeToChats()
+
+    // Also set up polling as backup (every 5 seconds)
+    const pollingInterval = setInterval(() => {
+      if (isParticipant) {
+        fetchChatsWithNotification()
+      }
+    }, 5000)
+
+    return () => {
+      cleanup()
+      clearInterval(pollingInterval)
+    }
+  }, [id, isParticipant])
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -97,6 +111,41 @@ function MeetingDetailPage() {
     setChats(data || [])
   }
 
+  const fetchChatsWithNotification = async () => {
+    const { data, error } = await supabase
+      .from('meeting_chats')
+      .select('*')
+      .eq('meeting_id', id)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching chats:', error)
+      return
+    }
+
+    if (data) {
+      // Check for new messages
+      const newMessages = data.filter(
+        (newChat) => !chats.some((existingChat) => existingChat.id === newChat.id)
+      )
+
+      // Send notification for new messages from other users
+      newMessages.forEach((message) => {
+        if (message.user_id !== user.id) {
+          console.log('New message detected via polling, adding notification')
+          addNotification({
+            type: 'chat',
+            title: `모임 채팅 - 새 메시지`,
+            message: `${message.anonymous_name}: ${message.message}`,
+            meetingId: id,
+          })
+        }
+      })
+
+      setChats(data)
+    }
+  }
+
   const subscribeToChats = () => {
     console.log('Setting up realtime subscription for meeting:', id)
 
@@ -115,9 +164,11 @@ function MeetingDetailPage() {
 
           // Add notification if message is from someone else
           if (payload.new.user_id !== user.id) {
+            console.log('Message from another user, adding notification')
+
             addNotification({
               type: 'chat',
-              title: '새 채팅 메시지',
+              title: `모임 채팅 - 새 메시지`,
               message: `${payload.new.anonymous_name}: ${payload.new.message}`,
               meetingId: id,
             })

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { formatDate, getDday } from '../../utils/date'
+import { uploadImage, validateImageFile } from '../../utils/storage'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
@@ -15,6 +16,10 @@ function VotePage() {
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [newPost, setNewPost] = useState({ title: '', content: '', author: '' })
   const [userVotes, setUserVotes] = useState(new Set()) // Store post IDs that user has voted for
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageError, setImageError] = useState('')
 
   useEffect(() => {
     fetchVotingData()
@@ -65,6 +70,34 @@ function VotePage() {
     }
   }
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file
+    const validation = validateImageFile(file)
+    if (!validation.valid) {
+      setImageError(validation.error)
+      return
+    }
+
+    setSelectedImage(file)
+    setImageError('')
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    setImageError('')
+  }
+
   const handleSubmitPost = async (e) => {
     e.preventDefault()
 
@@ -73,12 +106,32 @@ function VotePage() {
       return
     }
 
+    setLoading(true)
+
     try {
+      let imageUrl = null
+
+      // Upload image if selected
+      if (selectedImage) {
+        setUploadingImage(true)
+        const uploadResult = await uploadImage(selectedImage, user.id)
+        setUploadingImage(false)
+
+        if (!uploadResult.success) {
+          setImageError(uploadResult.error)
+          setLoading(false)
+          return
+        }
+
+        imageUrl = uploadResult.url
+      }
+
       const insertData = {
         title: newPost.title,
         content: newPost.content,
         nominator_id: user.id,
         voting_period_id: votingPeriod.id,
+        image_url: imageUrl,
       }
 
       // Add author_name if the field exists
@@ -99,11 +152,17 @@ function VotePage() {
       console.log('Submitted post:', data)
       setShowSubmitModal(false)
       setNewPost({ title: '', content: '', author: '' })
+      setSelectedImage(null)
+      setImagePreview(null)
+      setImageError('')
       fetchVotingData()
       alert('글이 성공적으로 제출되었습니다!')
     } catch (error) {
       console.error('Error submitting post:', error)
       alert(`글 제출 중 오류가 발생했습니다: ${error.message}`)
+    } finally {
+      setLoading(false)
+      setUploadingImage(false)
     }
   }
 
@@ -245,9 +304,87 @@ function VotePage() {
                 />
               </div>
 
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  이미지 첨부 (선택)
+                </label>
+
+                {!imagePreview ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className="cursor-pointer block"
+                    >
+                      <div className="text-gray-400 mb-2">
+                        <svg
+                          className="mx-auto h-12 w-12"
+                          stroke="currentColor"
+                          fill="none"
+                          viewBox="0 0 48 48"
+                        >
+                          <path
+                            d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        클릭하여 이미지 선택
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        JPG, PNG, GIF, WebP (최대 5MB)
+                      </p>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="relative border border-gray-300 rounded-lg overflow-hidden">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-auto max-h-96 object-contain bg-gray-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition shadow-lg"
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path d="M6 18L18 6M6 6l12 12"></path>
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
+                {imageError && (
+                  <p className="mt-1 text-sm text-red-500">{imageError}</p>
+                )}
+              </div>
+
               <div className="flex space-x-3 pt-4">
-                <Button type="submit" fullWidth>
-                  제출하기
+                <Button type="submit" fullWidth disabled={loading || uploadingImage}>
+                  {uploadingImage
+                    ? '이미지 업로드 중...'
+                    : loading
+                    ? '제출 중...'
+                    : '제출하기'}
                 </Button>
                 <Button
                   type="button"
@@ -255,7 +392,10 @@ function VotePage() {
                   fullWidth
                   onClick={() => {
                     setShowSubmitModal(false)
-                    setNewPost({ title: '', content: '' })
+                    setNewPost({ title: '', content: '', author: '' })
+                    setSelectedImage(null)
+                    setImagePreview(null)
+                    setImageError('')
                   }}
                 >
                   취소
@@ -296,6 +436,21 @@ function VotePage() {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{post.title}</h3>
+
+                  {/* Display image if exists */}
+                  {post.image_url && (
+                    <div className="mb-4">
+                      <img
+                        src={post.image_url}
+                        alt={post.title}
+                        className="w-full max-w-2xl h-auto rounded-lg border border-gray-200"
+                        onError={(e) => {
+                          e.target.style.display = 'none'
+                        }}
+                      />
+                    </div>
+                  )}
+
                   <p className="text-gray-600 mb-4 whitespace-pre-line">{post.content}</p>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
                     <span>작성자: {post.author_name || post.author?.username}</span>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { validatePostTitle, validatePostContent } from '../../utils/validation'
+import { uploadImage, validateImageFile } from '../../utils/storage'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import Card from '../../components/common/Card'
@@ -15,8 +16,11 @@ function NominatePage() {
     title: '',
     content: '',
   })
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     fetchVotingPeriod()
@@ -44,6 +48,34 @@ function NominatePage() {
     })
   }
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file
+    const validation = validateImageFile(file)
+    if (!validation.valid) {
+      setErrors({ ...errors, image: validation.error })
+      return
+    }
+
+    setSelectedImage(file)
+    setErrors({ ...errors, image: '' })
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    setErrors({ ...errors, image: '' })
+  }
+
   const validate = () => {
     const newErrors = {}
     const titleError = validatePostTitle(formData.title)
@@ -69,12 +101,31 @@ function NominatePage() {
     setLoading(true)
 
     try {
+      let imageUrl = null
+
+      // Upload image if selected
+      if (selectedImage) {
+        setUploadingImage(true)
+        const uploadResult = await uploadImage(selectedImage, user.id)
+        setUploadingImage(false)
+
+        if (!uploadResult.success) {
+          setErrors({ ...errors, image: uploadResult.error })
+          setLoading(false)
+          return
+        }
+
+        imageUrl = uploadResult.url
+      }
+
+      // Insert post with image URL
       await supabase.from('posts_nominations').insert([
         {
           title: formData.title,
           content: formData.content,
           nominator_id: user.id,
           voting_period_id: votingPeriod.id,
+          image_url: imageUrl,
         },
       ])
 
@@ -84,6 +135,7 @@ function NominatePage() {
       alert('글 추천 중 오류가 발생했습니다')
     } finally {
       setLoading(false)
+      setUploadingImage(false)
     }
   }
 
@@ -141,6 +193,80 @@ function NominatePage() {
             </p>
           </div>
 
+          {/* Image Upload */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              이미지 첨부 (선택)
+            </label>
+
+            {!imagePreview ? (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  id="image-upload"
+                />
+                <label
+                  htmlFor="image-upload"
+                  className="cursor-pointer block"
+                >
+                  <div className="text-gray-400 mb-2">
+                    <svg
+                      className="mx-auto h-12 w-12"
+                      stroke="currentColor"
+                      fill="none"
+                      viewBox="0 0 48 48"
+                    >
+                      <path
+                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    클릭하여 이미지 선택
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    JPG, PNG, GIF, WebP (최대 5MB)
+                  </p>
+                </label>
+              </div>
+            ) : (
+              <div className="relative border border-gray-300 rounded-lg overflow-hidden">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-full h-auto max-h-96 object-contain bg-gray-50"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition shadow-lg"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {errors.image && (
+              <p className="mt-1 text-sm text-red-500">{errors.image}</p>
+            )}
+          </div>
+
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <h3 className="font-medium text-blue-900 mb-2">추천 안내</h3>
             <ul className="text-sm text-blue-700 space-y-1">
@@ -159,8 +285,12 @@ function NominatePage() {
             >
               취소
             </Button>
-            <Button type="submit" fullWidth disabled={loading}>
-              {loading ? '추천 중...' : '글 추천하기'}
+            <Button type="submit" fullWidth disabled={loading || uploadingImage}>
+              {uploadingImage
+                ? '이미지 업로드 중...'
+                : loading
+                ? '추천 중...'
+                : '글 추천하기'}
             </Button>
           </div>
         </form>

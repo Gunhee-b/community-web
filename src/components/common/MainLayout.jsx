@@ -50,6 +50,16 @@ function MainLayout() {
                   베스트 글 투표
                 </Link>
                 <Link
+                  to="/best-posts"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive('/best-posts')
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  베스트 글
+                </Link>
+                <Link
                   to="/meetings"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     isActive('/meetings')

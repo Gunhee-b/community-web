@@ -33,10 +33,11 @@ function App() {
         console.error('Error refreshing user data:', error)
         // Don't clear user on network/RPC errors - keep persisted session
         // Only clear if it's a clear authentication failure
-        if (error.code === 'PGRST116') {
-          // Function doesn't exist - keep user logged in
-          console.log('RPC function not found, keeping persisted session')
+        if (error.code === 'PGRST116' || error.code === 'PGRST202' || error.code === '404') {
+          // Function doesn't exist (PGRST116, PGRST202) or 404 - keep user logged in
+          console.log('RPC function not found (code: ' + error.code + '), keeping persisted session')
         }
+        // For any other errors, also keep the session
         return
       }
 
