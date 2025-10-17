@@ -7,6 +7,7 @@ import { formatDate, getDday } from '../../utils/date'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
+import LocationMapPreview from '../../components/meetings/LocationMapPreview'
 
 function MeetingDetailPage() {
   const { id } = useParams()
@@ -301,17 +302,22 @@ function MeetingDetailPage() {
                 {meeting.purpose === 'coffee' ? '☕ 커피' : '🍺 술'}
               </span>
               <span className="ml-3 text-lg font-bold text-blue-600">
-                {getDday(meeting.meeting_datetime)}
+                {getDday(meeting.start_datetime)}
               </span>
             </div>
 
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
               {meeting.location}
             </h1>
 
-            <div className="space-y-2 text-gray-600">
+            {/* Naver Map Link right below location */}
+            <LocationMapPreview location={meeting.location} showInDetail={true} />
+
+            <div className="space-y-2 text-gray-600 mb-4">
               <p>
-                📅 {formatDate(meeting.meeting_datetime, 'yyyy년 MM월 dd일 HH:mm')}
+                📅 {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
+                {' - '}
+                {formatDate(meeting.end_datetime, 'HH:mm')}
               </p>
               <p>👤 호스트: {meeting.host?.username}</p>
               <p>

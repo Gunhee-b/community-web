@@ -12,11 +12,13 @@ function App() {
   useEffect(() => {
     // Check if session is expired and clear it
     if (session && session.expires_at < Date.now()) {
+      console.log('Session expired, clearing user data')
       setUser(null)
+      return
     }
-    // If we have a persisted user but need to refresh data
-    else if (user?.id) {
-      // Optionally refresh user data from database
+
+    // If we have a persisted user, verify with database
+    if (user?.id) {
       refreshUserData(user.id)
     }
   }, [])
@@ -29,21 +31,27 @@ function App() {
 
       if (error) {
         console.error('Error refreshing user data:', error)
-        setUser(null)
+        // Don't clear user on network/RPC errors - keep persisted session
+        // Only clear if it's a clear authentication failure
+        if (error.code === 'PGRST116') {
+          // Function doesn't exist - keep user logged in
+          console.log('RPC function not found, keeping persisted session')
+        }
         return
       }
 
-      if (data.success && data.user) {
-        // User is active and valid, update the store
+      if (data?.success && data?.user) {
+        // User is active and valid, update the store with fresh data
         setUser(data.user)
-      } else {
-        // User not found or inactive, clear session
-        console.log('Session invalid:', data.error)
+      } else if (data?.success === false) {
+        // Explicitly invalid user (inactive or not found)
+        console.log('User is inactive or not found:', data.error)
         setUser(null)
       }
+      // Otherwise keep the persisted session
     } catch (error) {
       console.error('Error refreshing user data:', error)
-      setUser(null)
+      // Don't clear user on unexpected errors - keep persisted session
     }
   }
 

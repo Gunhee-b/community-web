@@ -27,13 +27,13 @@ function MeetingsPage() {
 
       if (filter === 'upcoming') {
         query = query
-          .gte('meeting_datetime', new Date().toISOString())
+          .gte('start_datetime', new Date().toISOString())
           .eq('status', 'recruiting')
       } else {
-        query = query.lt('meeting_datetime', new Date().toISOString())
+        query = query.lt('start_datetime', new Date().toISOString())
       }
 
-      const { data } = await query.order('meeting_datetime', {
+      const { data } = await query.order('start_datetime', {
         ascending: filter === 'upcoming',
       })
 
@@ -100,7 +100,7 @@ function MeetingsPage() {
                   </span>
                   {filter === 'upcoming' && (
                     <span className="text-sm font-medium text-blue-600">
-                      {getDday(meeting.meeting_datetime)}
+                      {getDday(meeting.start_datetime)}
                     </span>
                   )}
                 </div>
@@ -110,7 +110,9 @@ function MeetingsPage() {
                 </h3>
 
                 <p className="text-gray-600 mb-4">
-                  {formatDate(meeting.meeting_datetime, 'yyyy년 MM월 dd일 HH:mm')}
+                  {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
+                  {' - '}
+                  {formatDate(meeting.end_datetime, 'HH:mm')}
                 </p>
 
                 <div className="flex items-center justify-between text-sm">

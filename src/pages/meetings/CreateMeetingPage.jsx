@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import Card from '../../components/common/Card'
+import LocationMapPreview from '../../components/meetings/LocationMapPreview'
 
 function CreateMeetingPage() {
   const navigate = useNavigate()
@@ -12,7 +13,8 @@ function CreateMeetingPage() {
   const [formData, setFormData] = useState({
     location: '',
     meetingDate: '',
-    meetingTime: '',
+    startTime: '',
+    endTime: '',
     maxParticipants: 4,
     purpose: 'coffee',
   })
@@ -31,17 +33,43 @@ function CreateMeetingPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!formData.location || !formData.meetingDate || !formData.meetingTime) {
+    if (
+      !formData.location ||
+      !formData.meetingDate ||
+      !formData.startTime ||
+      !formData.endTime
+    ) {
       setError('모든 필드를 입력해주세요')
       return
     }
 
-    const meetingDatetime = new Date(
-      `${formData.meetingDate}T${formData.meetingTime}:00`
+    const startDatetime = new Date(
+      `${formData.meetingDate}T${formData.startTime}:00`
+    )
+    const endDatetime = new Date(
+      `${formData.meetingDate}T${formData.endTime}:00`
     )
 
-    if (meetingDatetime <= new Date()) {
-      setError('모임 시간은 현재 시간 이후여야 합니다')
+    if (startDatetime <= new Date()) {
+      setError('모임 시작 시간은 현재 시간 이후여야 합니다')
+      return
+    }
+
+    if (endDatetime <= startDatetime) {
+      setError('모임 종료 시간은 시작 시간 이후여야 합니다')
+      return
+    }
+
+    // Confirmation dialog
+    const purposeText = formData.purpose === 'coffee' ? '☕ 커피' : '🍺 술'
+    const dateText = new Date(formData.meetingDate).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+    const confirmMessage = `다음 내용으로 모임을 생성하시겠습니까?\n\n📍 장소: ${formData.location}\n📅 날짜: ${dateText}\n⏰ 시간: ${formData.startTime} - ${formData.endTime}\n${purposeText}\n👥 최대 인원: ${formData.maxParticipants}명\n\n※ 장소 정보가 정확한지 다시 한번 확인해주세요!`
+
+    if (!window.confirm(confirmMessage)) {
       return
     }
 
@@ -54,7 +82,8 @@ function CreateMeetingPage() {
           {
             host_id: user.id,
             location: formData.location,
-            meeting_datetime: meetingDatetime.toISOString(),
+            start_datetime: startDatetime.toISOString(),
+            end_datetime: endDatetime.toISOString(),
             max_participants: parseInt(formData.maxParticipants),
             purpose: formData.purpose,
           },
@@ -96,20 +125,32 @@ function CreateMeetingPage() {
             required
           />
 
+          {/* Naver Map Preview */}
+          <LocationMapPreview location={formData.location} />
+
+          <Input
+            label="날짜"
+            name="meetingDate"
+            type="date"
+            value={formData.meetingDate}
+            onChange={handleChange}
+            required
+          />
+
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="날짜"
-              name="meetingDate"
-              type="date"
-              value={formData.meetingDate}
+              label="시작 시간"
+              name="startTime"
+              type="time"
+              value={formData.startTime}
               onChange={handleChange}
               required
             />
             <Input
-              label="시간"
-              name="meetingTime"
+              label="종료 시간"
+              name="endTime"
               type="time"
-              value={formData.meetingTime}
+              value={formData.endTime}
               onChange={handleChange}
               required
             />
