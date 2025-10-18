@@ -142,7 +142,7 @@ function NominatePage() {
   if (!votingPeriod) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">글 추천하기</h1>
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">글 추천하기</h1>
         <Card>
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">
@@ -156,7 +156,7 @@ function NominatePage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">글 추천하기</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">글 추천하기</h1>
 
       <Card>
         <form onSubmit={handleSubmit}>

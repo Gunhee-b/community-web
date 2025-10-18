@@ -224,7 +224,7 @@ function VotePage() {
   if (!votingPeriod) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">
           베스트 글 투표
         </h1>
         <Card>
@@ -247,7 +247,7 @@ function VotePage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">
           {votingPeriod?.title || '베스트 글 투표'}
         </h1>
         <Button onClick={() => setShowSubmitModal(true)}>글 제출하기</Button>
@@ -420,7 +420,7 @@ function VotePage() {
             </p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-2xl md:text-3xl font-bold text-blue-600">
               {getDday(votingPeriod.end_date)}
             </div>
             <p className="text-sm text-gray-500 mt-1">종료까지</p>

@@ -333,7 +333,7 @@ function AdminVotesPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">투표 관리</h1>
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">투표 관리</h1>
         <Button onClick={() => setShowCreateModal(true)}>새 투표 기간 생성</Button>
       </div>
 
@@ -434,7 +434,7 @@ function AdminVotesPage() {
             <div className="sticky top-0 bg-white pb-4 border-b mb-6">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
                     {selectedPost.title}
                   </h2>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -518,7 +518,7 @@ function AdminVotesPage() {
                   <Card key={post.id} className="bg-gray-50">
                     <div className="flex items-start space-x-4">
                       <div className="flex-shrink-0 text-center">
-                        <div className="text-3xl font-bold text-blue-600">
+                        <div className="text-2xl md:text-3xl font-bold text-blue-600">
                           {index + 1}
                         </div>
                         <div className="text-xs text-gray-500">순위</div>

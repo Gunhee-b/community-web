@@ -112,7 +112,7 @@ function CreateMeetingPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">모임 만들기</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">모임 만들기</h1>
 
       <Card>
         <form onSubmit={handleSubmit}>

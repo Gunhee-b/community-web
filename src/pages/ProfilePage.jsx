@@ -7,7 +7,7 @@ function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">내 프로필</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">내 프로필</h1>
 
       <Card className="mb-6">
         <div className="space-y-4">
@@ -44,19 +44,19 @@ function ProfilePage() {
         <h2 className="text-xl font-bold text-gray-900 mb-4">활동 통계</h2>
         <div className="grid grid-cols-2 gap-4">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <div className="text-3xl font-bold text-blue-600 mb-1">-</div>
+            <div className="text-2xl md:text-3xl font-bold text-blue-600 mb-1">-</div>
             <div className="text-sm text-gray-600">투표 참여</div>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
-            <div className="text-3xl font-bold text-green-600 mb-1">-</div>
+            <div className="text-2xl md:text-3xl font-bold text-green-600 mb-1">-</div>
             <div className="text-sm text-gray-600">글 추천</div>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <div className="text-3xl font-bold text-purple-600 mb-1">-</div>
+            <div className="text-2xl md:text-3xl font-bold text-purple-600 mb-1">-</div>
             <div className="text-sm text-gray-600">모임 참여</div>
           </div>
           <div className="text-center p-4 bg-orange-50 rounded-lg">
-            <div className="text-3xl font-bold text-orange-600 mb-1">-</div>
+            <div className="text-2xl md:text-3xl font-bold text-orange-600 mb-1">-</div>
             <div className="text-sm text-gray-600">모임 주최</div>
           </div>
         </div>

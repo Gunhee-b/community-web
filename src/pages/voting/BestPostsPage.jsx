@@ -102,7 +102,7 @@ function BestPostsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">베스트 글</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">베스트 글</h1>
       <p className="text-gray-600 mb-8">
         역대 투표에서 선정된 베스트 글을 확인하세요
       </p>
@@ -119,7 +119,7 @@ function BestPostsPage() {
                       🏆 베스트 글
                     </span>
                   </div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
                     {selectedPost.title}
                   </h2>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">

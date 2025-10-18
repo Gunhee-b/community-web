@@ -60,12 +60,12 @@ function AdminDashboardPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">관리자 대시보드</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">관리자 대시보드</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
           <div className="text-center">
-            <div className="text-4xl font-bold text-blue-600 mb-2">
+            <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-blue-600 mb-2">
               {stats.totalUsers}
             </div>
             <div className="text-gray-600">전체 회원</div>
@@ -74,7 +74,7 @@ function AdminDashboardPage() {
 
         <Card>
           <div className="text-center">
-            <div className="text-4xl font-bold text-green-600 mb-2">
+            <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-green-600 mb-2">
               {stats.activeUsers}
             </div>
             <div className="text-gray-600">활성 회원</div>
@@ -83,7 +83,7 @@ function AdminDashboardPage() {
 
         <Card>
           <div className="text-center">
-            <div className="text-4xl font-bold text-purple-600 mb-2">
+            <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-purple-600 mb-2">
               {stats.activeVotingPeriods}
             </div>
             <div className="text-gray-600">진행 중인 투표</div>
@@ -92,7 +92,7 @@ function AdminDashboardPage() {
 
         <Card>
           <div className="text-center">
-            <div className="text-4xl font-bold text-orange-600 mb-2">
+            <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-orange-600 mb-2">
               {stats.activeMeetings}
             </div>
             <div className="text-gray-600">모집 중인 모임</div>

@@ -99,7 +99,7 @@ function AdminUsersPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">회원 관리</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">회원 관리</h1>
 
       <Card>
         <div className="overflow-x-auto">

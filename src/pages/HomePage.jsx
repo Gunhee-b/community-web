@@ -55,7 +55,7 @@ function HomePage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">통찰방 커뮤니티</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">통찰방 커뮤니티</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Current Voting Period */}
@@ -119,7 +119,7 @@ function HomePage() {
       {/* Upcoming Meetings */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">다가오는 모임</h2>
+          <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">다가오는 모임</h2>
           <Link to="/meetings">
             <Button variant="outline" size="sm">
               전체 보기

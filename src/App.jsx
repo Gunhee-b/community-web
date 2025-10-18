@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import AppRoutes from './routes'
 import { useAuthStore } from './store/authStore'
 import { supabase } from './lib/supabase'
+import PWAInstallPrompt from './components/common/PWAInstallPrompt'
 
 function App() {
   const user = useAuthStore((state) => state.user)
@@ -20,6 +21,23 @@ function App() {
     // If we have a persisted user, verify with database
     if (user?.id) {
       refreshUserData(user.id)
+    }
+
+    // Register service worker update handler
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New content is available, notify user
+              if (confirm('새로운 버전이 있습니다. 업데이트하시겠습니까?')) {
+                window.location.reload()
+              }
+            }
+          })
+        })
+      })
     }
   }, [])
 
@@ -59,6 +77,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      {user && <PWAInstallPrompt />}
     </BrowserRouter>
   )
 }
