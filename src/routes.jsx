@@ -23,6 +23,10 @@ import MeetingsPage from './pages/meetings/MeetingsPage'
 import CreateMeetingPage from './pages/meetings/CreateMeetingPage'
 import MeetingDetailPage from './pages/meetings/MeetingDetailPage'
 
+// Question Pages
+import QuestionsListPage from './pages/questions/QuestionsListPage'
+import QuestionDetailPage from './pages/questions/QuestionDetailPage'
+
 // Test Pages
 import StorageTest from './pages/StorageTest'
 
@@ -31,6 +35,7 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminVotesPage from './pages/admin/AdminVotesPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import AdminInvitesPage from './pages/admin/AdminInvitesPage'
+import AdminQuestionsPage from './pages/admin/AdminQuestionsPage'
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -108,6 +113,10 @@ function AppRoutes() {
         <Route path="meetings/create" element={<CreateMeetingPage />} />
         <Route path="meetings/:id" element={<MeetingDetailPage />} />
 
+        {/* Question Routes */}
+        <Route path="questions" element={<QuestionsListPage />} />
+        <Route path="questions/:id" element={<QuestionDetailPage />} />
+
         {/* Test Routes */}
         <Route path="storage-test" element={<StorageTest />} />
       </Route>
@@ -125,6 +134,7 @@ function AppRoutes() {
         <Route path="votes" element={<AdminVotesPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="invites" element={<AdminInvitesPage />} />
+        <Route path="questions" element={<AdminQuestionsPage />} />
       </Route>
 
       {/* 404 */}

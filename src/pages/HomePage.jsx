@@ -5,6 +5,7 @@ import { formatDate, getDday } from '../utils/date'
 import Card from '../components/common/Card'
 import Loading from '../components/common/Loading'
 import Button from '../components/common/Button'
+import TodayQuestionBanner from '../components/questions/TodayQuestionBanner'
 
 function HomePage() {
   const [votingPeriod, setVotingPeriod] = useState(null)
@@ -55,7 +56,10 @@ function HomePage() {
 
   return (
     <div>
-      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">통찰방 커뮤니티</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-6">통찰방 커뮤니티</h1>
+
+      {/* 오늘의 질문 배너 */}
+      <TodayQuestionBanner />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Current Voting Period */}

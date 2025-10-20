@@ -40,6 +40,16 @@ function AdminLayout() {
                   대시보드
                 </Link>
                 <Link
+                  to="/admin/questions"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive('/admin/questions')
+                      ? 'bg-blue-700 text-white'
+                      : 'text-blue-100 hover:bg-blue-700'
+                  }`}
+                >
+                  질문 관리
+                </Link>
+                <Link
                   to="/admin/votes"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     isActive('/admin/votes')
