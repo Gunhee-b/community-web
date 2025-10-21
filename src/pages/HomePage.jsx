@@ -56,7 +56,7 @@ function HomePage() {
 
   return (
     <div>
-      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-6">통찰방 커뮤니티</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-6">ING:K 커뮤니티</h1>
 
       {/* 오늘의 질문 배너 */}
       <TodayQuestionBanner />

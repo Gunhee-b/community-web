@@ -70,16 +70,16 @@ function QuestionsListPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">질문 모음</h1>
-        <p className="text-gray-600">지금까지의 모든 질문을 확인하고 답변해보세요</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">ING:K 질문 모음</h1>
+        <p className="text-gray-600">스스로 정의하고, 표현하는 철학을 구축하기를 바랍니다.</p>
       </div>
 
       {/* 90-Day Challenge 진행 상황 */}
       <Card className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-1">90-Day Challenge</h2>
-            <p className="text-sm text-gray-600">90개의 질문에 답변하는 챌린지</p>
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Onetence Note 90-Day Challenge</h2>
+            <p className="text-sm text-gray-600">90개의 질문을 스스로 정의하고 답변하는 챌린지</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold text-blue-600">{totalChecked}/90</div>

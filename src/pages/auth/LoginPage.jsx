@@ -44,7 +44,7 @@ function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <div className="text-center mb-8">
-          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-blue-600 mb-2">통찰방</h1>
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-blue-600 mb-2">ING:K</h1>
           <p className="text-gray-600">커뮤니티에 로그인하세요</p>
         </div>
 
