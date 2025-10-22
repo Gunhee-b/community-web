@@ -12,6 +12,7 @@ function CreateMeetingPage() {
   const user = useAuthStore((state) => state.user)
   const [formData, setFormData] = useState({
     location: '',
+    description: '',
     meetingDate: '',
     startTime: '',
     endTime: '',
@@ -107,14 +108,15 @@ function CreateMeetingPage() {
           {
             host_id: user.id,
             location: formData.location,
+            description: formData.description || null,
             start_datetime: startDatetime.toISOString(),
             end_datetime: endDatetime.toISOString(),
             max_participants: parseInt(formData.maxParticipants),
             purpose: formData.purpose,
           },
         ])
-        .select()
-        .maybeSingle()
+        .select('*')
+        .single()
 
       if (meetingError) throw meetingError
 
@@ -152,6 +154,20 @@ function CreateMeetingPage() {
 
           {/* Naver Map Preview */}
           <LocationMapPreview location={formData.location} />
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 상세
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="모임에 대해 자유롭게 설명해주세요 (선택사항)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows="3"
+            />
+          </div>
 
           <Input
             label="날짜"

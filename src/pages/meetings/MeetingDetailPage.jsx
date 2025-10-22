@@ -27,6 +27,7 @@ function MeetingDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState({
     location: '',
+    description: '',
     start_datetime: '',
     end_datetime: '',
     max_participants: '',
@@ -46,11 +47,29 @@ function MeetingDetailPage() {
       }
     }, 5000)
 
+    // Listen for localStorage events for cross-tab notifications
+    const handleStorageEvent = (e) => {
+      if (e.key === 'temp_meeting_notification') {
+        const notificationData = JSON.parse(e.newValue)
+        if (notificationData && notificationData.hostId === user.id) {
+          addNotification({
+            type: notificationData.type,
+            title: notificationData.title,
+            message: notificationData.message,
+            meetingId: notificationData.meetingId,
+          })
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleStorageEvent)
+
     return () => {
       cleanup()
       clearInterval(pollingInterval)
+      window.removeEventListener('storage', handleStorageEvent)
     }
-  }, [id, isParticipant])
+  }, [id, isParticipant, user.id])
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -204,6 +223,12 @@ function MeetingDetailPage() {
   }
 
   const handleJoin = async () => {
+    // Check if meeting is confirmed
+    if (meeting.status === 'confirmed') {
+      alert('이미 확정된 모임입니다. 더 이상 참가할 수 없습니다.')
+      return
+    }
+
     try {
       // Get anonymous name
       const anonymousName = `참가자${participants.length + 1}`
@@ -222,6 +247,117 @@ function MeetingDetailPage() {
     }
   }
 
+  const handleConfirmMeeting = async () => {
+    if (!confirm('모임을 확정하시겠습니까? 확정 후에는 더 이상 새로운 참가자를 받을 수 없습니다.')) {
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('confirm_meeting', {
+        p_meeting_id: id,
+        p_user_id: user.id
+      })
+
+      if (error) {
+        throw new Error(error.message || '모임 확정 중 오류가 발생했습니다')
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || '모임 확정 중 오류가 발생했습니다')
+      }
+
+      alert('모임이 확정되었습니다!')
+      fetchMeetingData()
+    } catch (error) {
+      console.error('Error confirming meeting:', error)
+      alert(error.message)
+    }
+  }
+
+  const handleUnconfirmMeeting = async () => {
+    if (!confirm('모임 확정을 취소하시겠습니까? 취소하면 다시 새로운 참가자를 받을 수 있습니다.')) {
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('unconfirm_meeting', {
+        p_meeting_id: id,
+        p_user_id: user.id
+      })
+
+      if (error) {
+        throw new Error(error.message || '확정 취소 중 오류가 발생했습니다')
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || '확정 취소 중 오류가 발생했습니다')
+      }
+
+      alert('모임 확정이 취소되었습니다. 다시 참가자를 받을 수 있습니다.')
+      fetchMeetingData()
+    } catch (error) {
+      console.error('Error unconfirming meeting:', error)
+      alert(error.message)
+    }
+  }
+
+  const handleLeaveMeeting = async () => {
+    if (!confirm('정말로 이 모임에서 나가시겠습니까?\n모임에서 나가면 채팅 기록도 사라집니다.')) {
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('leave_meeting', {
+        p_meeting_id: id,
+        p_user_id: user.id
+      })
+
+      if (error) {
+        throw new Error(error.message || '모임 나가기 중 오류가 발생했습니다')
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || '모임 나가기 중 오류가 발생했습니다')
+      }
+
+      // Send notification to host
+      if (data.host_id && data.anonymous_name) {
+        console.log(`Participant ${data.anonymous_name} left the meeting. Host ID: ${data.host_id}`)
+
+        const notificationEvent = {
+          type: 'meeting_leave',
+          title: '모임 참가자 퇴장',
+          message: `${data.anonymous_name}님이 모임에서 나갔습니다.`,
+          meetingId: id,
+          timestamp: new Date().toISOString(),
+          hostId: data.host_id
+        }
+
+        // If current user is the host (unlikely but possible if admin leaves their own meeting)
+        // Add notification directly
+        if (user.id === data.host_id) {
+          addNotification({
+            type: notificationEvent.type,
+            title: notificationEvent.title,
+            message: notificationEvent.message,
+            meetingId: notificationEvent.meetingId,
+          })
+        }
+
+        // Store in localStorage to trigger events in other tabs/sessions
+        // This creates a storage event that other tabs can listen to
+        localStorage.setItem('temp_meeting_notification', JSON.stringify(notificationEvent))
+        localStorage.removeItem('temp_meeting_notification')
+      }
+
+      alert('모임에서 나갔습니다.')
+      navigate('/meetings')
+    } catch (error) {
+      console.error('Error leaving meeting:', error)
+      alert(error.message)
+    }
+  }
+
   const handleEditClick = () => {
     if (!meeting) return
 
@@ -231,6 +367,7 @@ function MeetingDetailPage() {
 
     setEditForm({
       location: meeting.location,
+      description: meeting.description || '',
       start_datetime: startDate.toISOString().slice(0, 16),
       end_datetime: endDate ? endDate.toISOString().slice(0, 16) : '',
       max_participants: meeting.max_participants.toString(),
@@ -255,6 +392,7 @@ function MeetingDetailPage() {
         .from('offline_meetings')
         .update({
           location: editForm.location,
+          description: editForm.description || null,
           start_datetime: editForm.start_datetime,
           end_datetime: editForm.end_datetime || null,
           max_participants: parseInt(editForm.max_participants),
@@ -422,12 +560,28 @@ function MeetingDetailPage() {
               </span>
             </div>
 
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {meeting.location}
-            </h1>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {meeting.location}
+              </h1>
+              {isParticipant && meeting.host_id !== user?.id && (
+                <button
+                  onClick={handleLeaveMeeting}
+                  className="text-sm text-red-600 hover:text-red-800 underline ml-4"
+                >
+                  모임 나가기
+                </button>
+              )}
+            </div>
 
             {/* Naver Map Link right below location */}
             <LocationMapPreview location={meeting.location} showInDetail={true} />
+
+            {meeting.description && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-gray-700 whitespace-pre-wrap">{meeting.description}</p>
+              </div>
+            )}
 
             <div className="space-y-2 text-gray-600 mb-4">
               <p>
@@ -450,6 +604,38 @@ function MeetingDetailPage() {
             {meeting.status === 'closed' && (
               <div className="mt-6 p-3 bg-gray-100 text-gray-600 text-center rounded-lg">
                 모집이 마감되었습니다
+              </div>
+            )}
+
+            {meeting.status === 'confirmed' && (
+              <div className="mt-6 p-3 bg-green-100 text-green-700 rounded-lg font-medium">
+                <div className="flex items-center justify-between">
+                  <span className="flex-1 text-center">✅ 모임이 확정되었습니다</span>
+                  {(user?.role === 'admin' || meeting.host_id === user?.id) && (
+                    <button
+                      onClick={handleUnconfirmMeeting}
+                      className="text-xs text-green-600 hover:text-green-800 underline ml-2 whitespace-nowrap"
+                    >
+                      확정 취소
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Meeting host confirm button (only for recruiting status) */}
+            {meeting.host_id === user?.id && meeting.status === 'recruiting' && (
+              <div className="mt-4 pt-4 border-t">
+                <Button
+                  onClick={handleConfirmMeeting}
+                  fullWidth
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  ✅ 모임장: 모임 확정 (참가 마감)
+                </Button>
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  * 확정 후에는 새로운 참가자를 받을 수 없습니다
+                </p>
               </div>
             )}
 
@@ -576,6 +762,19 @@ function MeetingDetailPage() {
               onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="예: 강남역 스타벅스"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 상세
+            </label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              placeholder="모임에 대해 자유롭게 설명해주세요 (선택사항)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows="3"
             />
           </div>
 

@@ -188,7 +188,6 @@ function AdminUsersPage() {
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 px-4">닉네임</th>
-                <th className="text-left py-3 px-4">카카오 닉네임</th>
                 <th className="text-left py-3 px-4">역할</th>
                 <th className="text-left py-3 px-4">가입일</th>
                 <th className="text-left py-3 px-4">상태</th>
@@ -199,7 +198,6 @@ function AdminUsersPage() {
               {users.map((user) => (
                 <tr key={user.id} className="border-b hover:bg-gray-50">
                   <td className="py-3 px-4">{user.username}</td>
-                  <td className="py-3 px-4">{user.kakao_nickname}</td>
                   <td className="py-3 px-4">
                     <button
                       onClick={() => handleRoleClick(user)}

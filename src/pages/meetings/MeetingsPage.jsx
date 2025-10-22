@@ -33,7 +33,7 @@ function MeetingsPage() {
       if (filter === 'upcoming') {
         query = query
           .gte('start_datetime', new Date().toISOString())
-          .eq('status', 'recruiting')
+          .in('status', ['recruiting', 'confirmed'])
       } else {
         query = query.lt('start_datetime', new Date().toISOString())
       }
@@ -135,6 +135,12 @@ function MeetingsPage() {
                 {meeting.status === 'closed' && (
                   <div className="mt-3 px-3 py-1 bg-gray-100 text-gray-600 text-center rounded">
                     모집 마감
+                  </div>
+                )}
+
+                {meeting.status === 'confirmed' && (
+                  <div className="mt-3 px-3 py-1 bg-green-100 text-green-700 text-center rounded font-medium">
+                    ✅ 모임 확정
                   </div>
                 )}
               </Link>
