@@ -50,11 +50,11 @@ function LoginPage() {
 
         <form onSubmit={handleSubmit}>
           <Input
-            label="아이디"
+            label="닉네임"
             name="username"
             value={formData.username}
             onChange={handleChange}
-            placeholder="아이디를 입력하세요"
+            placeholder="닉네임을 입력하세요"
             required
           />
 
