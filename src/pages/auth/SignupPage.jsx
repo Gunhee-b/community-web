@@ -17,7 +17,6 @@ function SignupPage() {
   const [formData, setFormData] = useState({
     invitationCode: '',
     username: '',
-    kakaoNickname: '',
     password: '',
     passwordConfirm: '',
   })
@@ -50,11 +49,6 @@ function SignupPage() {
     const usernameError = validateUsername(formData.username)
     if (usernameError) newErrors.username = usernameError
 
-    // Kakao nickname
-    if (!formData.kakaoNickname || formData.kakaoNickname.trim().length === 0) {
-      newErrors.kakaoNickname = '카카오 닉네임을 입력해주세요'
-    }
-
     // Password
     const passwordError = validatePassword(formData.password)
     if (passwordError) newErrors.password = passwordError
@@ -81,7 +75,6 @@ function SignupPage() {
     try {
       const userData = await registerUser({
         username: formData.username,
-        kakaoNickname: formData.kakaoNickname,
         password: formData.password,
         invitationCode: formData.invitationCode,
       })
@@ -108,7 +101,7 @@ function SignupPage() {
             name="invitationCode"
             value={formData.invitationCode}
             onChange={handleChange}
-            placeholder="6자리 초대 코드"
+            placeholder="6자리 초대 코드 (영문 대문자 + 숫자)"
             error={errors.invitationCode}
             required
             maxLength={6}
@@ -121,16 +114,6 @@ function SignupPage() {
             onChange={handleChange}
             placeholder="2-20자 (한글, 영문, 숫자)"
             error={errors.username}
-            required
-          />
-
-          <Input
-            label="카카오 오픈채팅 닉네임"
-            name="kakaoNickname"
-            value={formData.kakaoNickname}
-            onChange={handleChange}
-            placeholder="카카오톡 닉네임"
-            error={errors.kakaoNickname}
             required
           />
 
@@ -165,7 +148,6 @@ function SignupPage() {
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
             <p className="font-medium mb-1">회원가입 안내</p>
             <ul className="list-disc list-inside text-xs space-y-1">
-              <li>카카오 닉네임으로 중복 가입을 방지합니다</li>
               <li>초대 코드는 7일간 유효합니다</li>
               <li>관리자 승인 후 활동 가능합니다</li>
             </ul>

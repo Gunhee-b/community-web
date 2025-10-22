@@ -3,10 +3,9 @@ import { supabase } from '../lib/supabase'
 /**
  * Register new user (server-side password hashing)
  */
-export const registerUser = async ({ username, kakaoNickname, password, invitationCode }) => {
+export const registerUser = async ({ username, password, invitationCode }) => {
   const { data, error } = await supabase.rpc('register_user', {
     p_username: username,
-    p_kakao_nickname: kakaoNickname,
     p_password: password,
     p_invitation_code: invitationCode,
   })

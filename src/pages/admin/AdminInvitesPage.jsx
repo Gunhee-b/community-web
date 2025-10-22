@@ -31,8 +31,12 @@ function AdminInvitesPage() {
   }
 
   const generateCode = () => {
-    // Generate 6-digit number (100000 to 999999)
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    // Generate 6-character alphanumeric code (uppercase letters + numbers)
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    let code = ''
+    for (let i = 0; i < 6; i++) {
+      code += characters.charAt(Math.floor(Math.random() * characters.length))
+    }
     return code
   }
 
