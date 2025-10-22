@@ -454,7 +454,7 @@ function MeetingDetailPage() {
             )}
 
             {/* Admin/Meeting host edit and delete buttons */}
-            {(user?.role === 'admin' || user?.role === 'meeting_host') && (
+            {(user?.role === 'admin' || meeting.host_id === user?.id) && (
               <div className="mt-4 pt-4 border-t space-y-2">
                 <Button
                   onClick={handleEditClick}
