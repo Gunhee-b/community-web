@@ -7,6 +7,7 @@ import { formatDate, getDday } from '../../utils/date'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
+import Modal from '../../components/common/Modal'
 import LocationMapPreview from '../../components/meetings/LocationMapPreview'
 
 function MeetingDetailPage() {
@@ -21,6 +22,16 @@ function MeetingDetailPage() {
   const [chats, setChats] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const chatEndRef = useRef(null)
+
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editForm, setEditForm] = useState({
+    location: '',
+    start_datetime: '',
+    end_datetime: '',
+    max_participants: '',
+    purpose: 'coffee'
+  })
 
   useEffect(() => {
     fetchMeetingData()
@@ -211,6 +222,60 @@ function MeetingDetailPage() {
     }
   }
 
+  const handleEditClick = () => {
+    if (!meeting) return
+
+    // Format datetime for input (YYYY-MM-DDTHH:mm)
+    const startDate = new Date(meeting.start_datetime)
+    const endDate = meeting.end_datetime ? new Date(meeting.end_datetime) : null
+
+    setEditForm({
+      location: meeting.location,
+      start_datetime: startDate.toISOString().slice(0, 16),
+      end_datetime: endDate ? endDate.toISOString().slice(0, 16) : '',
+      max_participants: meeting.max_participants.toString(),
+      purpose: meeting.purpose
+    })
+    setEditModalOpen(true)
+  }
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault()
+
+    try {
+      console.log('Updating meeting with:', {
+        location: editForm.location,
+        start_datetime: editForm.start_datetime,
+        end_datetime: editForm.end_datetime || null,
+        max_participants: parseInt(editForm.max_participants),
+        purpose: editForm.purpose
+      })
+
+      const { data, error } = await supabase
+        .from('offline_meetings')
+        .update({
+          location: editForm.location,
+          start_datetime: editForm.start_datetime,
+          end_datetime: editForm.end_datetime || null,
+          max_participants: parseInt(editForm.max_participants),
+          purpose: editForm.purpose
+        })
+        .eq('id', id)
+        .select()
+
+      console.log('Update result:', { data, error })
+
+      if (error) throw error
+
+      alert('모임 정보가 수정되었습니다')
+      setEditModalOpen(false)
+      fetchMeetingData()
+    } catch (error) {
+      console.error('Error updating meeting:', error)
+      alert(error.message || '모임 수정 중 오류가 발생했습니다')
+    }
+  }
+
   const handleDeleteMeeting = async () => {
     if (!window.confirm('정말로 이 모임을 삭제하시겠습니까?')) {
       return
@@ -388,15 +453,22 @@ function MeetingDetailPage() {
               </div>
             )}
 
-            {/* Admin delete button */}
-            {user?.role === 'admin' && (
-              <div className="mt-4 pt-4 border-t">
+            {/* Admin/Meeting host edit and delete buttons */}
+            {(user?.role === 'admin' || user?.role === 'meeting_host') && (
+              <div className="mt-4 pt-4 border-t space-y-2">
+                <Button
+                  onClick={handleEditClick}
+                  variant="outline"
+                  className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
+                >
+                  ✏️ {user?.role === 'admin' ? '관리자' : '모임장'}: 모임 수정
+                </Button>
                 <Button
                   onClick={handleDeleteMeeting}
                   variant="outline"
                   className="w-full text-red-600 border-red-300 hover:bg-red-50"
                 >
-                  🗑️ 관리자: 모임 삭제
+                  🗑️ {user?.role === 'admin' ? '관리자' : '모임장'}: 모임 삭제
                 </Button>
               </div>
             )}
@@ -485,6 +557,99 @@ function MeetingDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Edit Meeting Modal */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="모임 수정"
+      >
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              장소 *
+            </label>
+            <input
+              type="text"
+              required
+              value={editForm.location}
+              onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="예: 강남역 스타벅스"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              시작 시간 *
+            </label>
+            <input
+              type="datetime-local"
+              required
+              value={editForm.start_datetime}
+              onChange={(e) => setEditForm({ ...editForm, start_datetime: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              종료 시간
+            </label>
+            <input
+              type="datetime-local"
+              value={editForm.end_datetime}
+              onChange={(e) => setEditForm({ ...editForm, end_datetime: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              최대 인원 *
+            </label>
+            <input
+              type="number"
+              required
+              min="2"
+              value={editForm.max_participants}
+              onChange={(e) => setEditForm({ ...editForm, max_participants: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              현재 참가 인원: {participants.length}명
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 목적 *
+            </label>
+            <select
+              required
+              value={editForm.purpose}
+              onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="coffee">☕ 커피</option>
+              <option value="alcohol">🍺 술</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEditModalOpen(false)}
+            >
+              취소
+            </Button>
+            <Button type="submit">
+              수정
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

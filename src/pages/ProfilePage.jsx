@@ -25,10 +25,12 @@ function ProfilePage() {
               className={`px-3 py-1 rounded-full text-sm font-medium ${
                 user?.role === 'admin'
                   ? 'bg-blue-100 text-blue-700'
+                  : user?.role === 'meeting_host'
+                  ? 'bg-purple-100 text-purple-700'
                   : 'bg-gray-100 text-gray-700'
               }`}
             >
-              {user?.role === 'admin' ? '관리자' : '일반 회원'}
+              {user?.role === 'admin' ? '관리자' : user?.role === 'meeting_host' ? '모임장' : '일반 회원'}
             </span>
           </div>
           <div className="flex justify-between items-center">

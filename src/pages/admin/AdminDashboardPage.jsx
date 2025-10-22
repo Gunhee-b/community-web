@@ -102,7 +102,7 @@ function AdminDashboardPage() {
 
       <Card>
         <h2 className="text-xl font-bold text-gray-900 mb-4">빠른 작업</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <a
             href="/admin/votes"
             className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -119,6 +119,15 @@ function AdminDashboardPage() {
             <div className="text-2xl mb-2">👥</div>
             <div className="font-medium text-gray-900">회원 관리</div>
             <div className="text-sm text-gray-600">회원 정보 및 제재 관리</div>
+          </a>
+
+          <a
+            href="/admin/meetings"
+            className="p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+          >
+            <div className="text-2xl mb-2">🤝</div>
+            <div className="font-medium text-gray-900">모임 관리</div>
+            <div className="text-sm text-gray-600">모든 모임 조회 및 관리</div>
           </a>
 
           <a

@@ -34,6 +34,7 @@ import StorageTest from './pages/StorageTest'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminVotesPage from './pages/admin/AdminVotesPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
+import AdminMeetingsPage from './pages/admin/AdminMeetingsPage'
 import AdminInvitesPage from './pages/admin/AdminInvitesPage'
 import AdminQuestionsPage from './pages/admin/AdminQuestionsPage'
 
@@ -133,6 +134,7 @@ function AppRoutes() {
         <Route index element={<AdminDashboardPage />} />
         <Route path="votes" element={<AdminVotesPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="meetings" element={<AdminMeetingsPage />} />
         <Route path="invites" element={<AdminInvitesPage />} />
         <Route path="questions" element={<AdminQuestionsPage />} />
       </Route>

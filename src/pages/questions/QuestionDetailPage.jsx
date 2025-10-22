@@ -203,7 +203,7 @@ function QuestionDetailPage() {
             rel="noopener noreferrer"
             className="text-blue-600 hover:text-blue-700 underline break-all"
           >
-            {question.external_link}
+            {question.external_link_text || question.external_link}
           </a>
         </Card>
       )}

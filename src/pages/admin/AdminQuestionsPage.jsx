@@ -22,6 +22,7 @@ function AdminQuestionsPage() {
     content: '',
     image_url: '',
     external_link: '',
+    external_link_text: '',
     reference_links: '',
     scheduled_date: new Date().toISOString().split('T')[0],
     is_published: false
@@ -57,6 +58,7 @@ function AdminQuestionsPage() {
         content: question.content || '',
         image_url: question.image_url || '',
         external_link: question.external_link || '',
+        external_link_text: question.external_link_text || '',
         reference_links: question.reference_links || '',
         scheduled_date: question.scheduled_date || new Date().toISOString().split('T')[0],
         is_published: question.is_published || false
@@ -69,6 +71,7 @@ function AdminQuestionsPage() {
         content: '',
         image_url: '',
         external_link: '',
+        external_link_text: '',
         reference_links: '',
         scheduled_date: new Date().toISOString().split('T')[0],
         is_published: false
@@ -86,6 +89,7 @@ function AdminQuestionsPage() {
       content: '',
       image_url: '',
       external_link: '',
+      external_link_text: '',
       reference_links: '',
       scheduled_date: new Date().toISOString().split('T')[0],
       is_published: false
@@ -386,6 +390,20 @@ function AdminQuestionsPage() {
               placeholder="https://example.com"
               type="url"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              링크 텍스트
+            </label>
+            <Input
+              value={formData.external_link_text}
+              onChange={(e) => setFormData({ ...formData, external_link_text: e.target.value })}
+              placeholder="예: 원문 보기, 관련 자료, 더 알아보기"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              외부 링크에 표시될 텍스트입니다. 비워두면 URL이 그대로 표시됩니다.
+            </p>
           </div>
 
           <div>

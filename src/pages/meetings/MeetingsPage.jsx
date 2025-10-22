@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/authStore'
 import { formatDate, getDday } from '../../utils/date'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
 
 function MeetingsPage() {
+  const user = useAuthStore((state) => state.user)
   const [meetings, setMeetings] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('upcoming') // upcoming, past
+
+  // Check if user can create meetings
+  const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host'
 
   useEffect(() => {
     fetchMeetings()
@@ -53,9 +58,11 @@ function MeetingsPage() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">오프라인 모임</h1>
-        <Link to="/meetings/create">
-          <Button>모임 만들기</Button>
-        </Link>
+        {canCreateMeeting && (
+          <Link to="/meetings/create">
+            <Button>모임 만들기</Button>
+          </Link>
+        )}
       </div>
 
       {/* Filter Tabs */}

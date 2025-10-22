@@ -12,6 +12,8 @@ function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
+  const [roleModalOpen, setRoleModalOpen] = useState(false)
+  const [newRole, setNewRole] = useState('')
   const currentUser = useAuthStore((state) => state.user)
 
   useEffect(() => {
@@ -93,6 +95,85 @@ function AdminUsersPage() {
     }
   }
 
+  const handleRoleClick = (user) => {
+    if (user.id === currentUser?.id) {
+      alert('자신의 역할은 변경할 수 없습니다')
+      return
+    }
+    setSelectedUser(user)
+    setNewRole(user.role)
+    setRoleModalOpen(true)
+  }
+
+  const handleRoleChange = async () => {
+    if (!selectedUser || !newRole) return
+
+    try {
+      console.log('Calling change_user_role with:', {
+        p_user_id: selectedUser.id,
+        p_new_role: newRole,
+        p_admin_user_id: currentUser.id
+      })
+
+      const { data, error } = await supabase.rpc('change_user_role', {
+        p_user_id: selectedUser.id,
+        p_new_role: newRole,
+        p_admin_user_id: currentUser.id
+      })
+
+      console.log('RPC response:', { data, error })
+
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
+
+      if (!data) {
+        throw new Error('서버로부터 응답이 없습니다')
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || '역할 변경 중 오류가 발생했습니다')
+      }
+
+      alert('회원 역할이 변경되었습니다')
+      setRoleModalOpen(false)
+      setSelectedUser(null)
+      setNewRole('')
+      fetchUsers()
+    } catch (error) {
+      console.error('Error changing user role:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
+      alert(`역할 변경 실패: ${error.message || error.hint || error.details || '알 수 없는 오류'}`)
+    }
+  }
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'admin':
+        return '관리자'
+      case 'meeting_host':
+        return '모임장'
+      case 'member':
+        return '일반'
+      default:
+        return '일반'
+    }
+  }
+
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case 'admin':
+        return 'bg-blue-100 text-blue-700'
+      case 'meeting_host':
+        return 'bg-purple-100 text-purple-700'
+      case 'member':
+        return 'bg-gray-100 text-gray-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
   if (loading) {
     return <Loading />
   }
@@ -120,15 +201,15 @@ function AdminUsersPage() {
                   <td className="py-3 px-4">{user.username}</td>
                   <td className="py-3 px-4">{user.kakao_nickname}</td>
                   <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        user.role === 'admin'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-100 text-gray-700'
+                    <button
+                      onClick={() => handleRoleClick(user)}
+                      disabled={user.id === currentUser?.id}
+                      className={`px-2 py-1 rounded text-xs ${getRoleBadgeClass(user.role)} ${
+                        user.id === currentUser?.id ? 'cursor-not-allowed opacity-60' : 'hover:opacity-80 cursor-pointer'
                       }`}
                     >
-                      {user.role === 'admin' ? '관리자' : '일반'}
-                    </span>
+                      {getRoleLabel(user.role)}
+                    </button>
                   </td>
                   <td className="py-3 px-4">
                     {formatDate(user.created_at, 'yyyy-MM-dd')}
@@ -176,6 +257,56 @@ function AdminUsersPage() {
           </table>
         </div>
       </Card>
+
+      {/* Role Change Modal */}
+      <Modal
+        isOpen={roleModalOpen}
+        onClose={() => setRoleModalOpen(false)}
+        title="회원 역할 변경"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            <strong>{selectedUser?.username}</strong> 회원의 역할을 변경합니다.
+          </p>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              새 역할 선택
+            </label>
+            <select
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="member">일반 회원</option>
+              <option value="meeting_host">모임장</option>
+              <option value="admin">관리자</option>
+            </select>
+          </div>
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>역할별 권한:</strong>
+            </p>
+            <ul className="text-sm text-blue-700 mt-2 space-y-1">
+              <li>• <strong>일반 회원:</strong> 기본 기능 사용</li>
+              <li>• <strong>모임장:</strong> 모임 관리 권한 추가</li>
+              <li>• <strong>관리자:</strong> 전체 시스템 관리 권한</li>
+            </ul>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => setRoleModalOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleRoleChange}
+            >
+              변경
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
       <Modal

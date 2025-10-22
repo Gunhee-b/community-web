@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../store/authStore'
 import { formatDate, getDday } from '../utils/date'
 import Card from '../components/common/Card'
 import Loading from '../components/common/Loading'
@@ -8,9 +9,13 @@ import Button from '../components/common/Button'
 import TodayQuestionBanner from '../components/questions/TodayQuestionBanner'
 
 function HomePage() {
+  const user = useAuthStore((state) => state.user)
   const [votingPeriod, setVotingPeriod] = useState(null)
   const [meetings, setMeetings] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // Check if user can create meetings
+  const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host'
 
   useEffect(() => {
     fetchData()
@@ -117,6 +122,16 @@ function HomePage() {
               </span>
             </div>
           </div>
+          <div className="mt-6 pt-4 border-t">
+            <a
+              href="https://ingk.me/32"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white text-center font-medium rounded-lg transition-colors"
+            >
+              🎉 커뮤니티 참가하기
+            </a>
+          </div>
         </Card>
       </div>
 
@@ -173,9 +188,11 @@ function HomePage() {
               <p className="text-gray-500 mb-4">
                 다가오는 모임이 없습니다
               </p>
-              <Link to="/meetings/create">
-                <Button>모임 만들기</Button>
-              </Link>
+              {canCreateMeeting && (
+                <Link to="/meetings/create">
+                  <Button>모임 만들기</Button>
+                </Link>
+              )}
             </div>
           </Card>
         )}
@@ -192,15 +209,17 @@ function HomePage() {
             </p>
           </Link>
         </Card>
-        <Card hoverable>
-          <Link to="/meetings/create" className="block text-center">
-            <div className="text-4xl mb-2">🤝</div>
-            <h3 className="font-semibold text-gray-900 mb-1">모임 만들기</h3>
-            <p className="text-sm text-gray-600">
-              새로운 오프라인 모임을 만들어보세요
-            </p>
-          </Link>
-        </Card>
+        {canCreateMeeting && (
+          <Card hoverable>
+            <Link to="/meetings/create" className="block text-center">
+              <div className="text-4xl mb-2">🤝</div>
+              <h3 className="font-semibold text-gray-900 mb-1">모임 만들기</h3>
+              <p className="text-sm text-gray-600">
+                새로운 오프라인 모임을 만들어보세요
+              </p>
+            </Link>
+          </Card>
+        )}
         <Card hoverable>
           <Link to="/profile" className="block text-center">
             <div className="text-4xl mb-2">👤</div>
@@ -210,6 +229,13 @@ function HomePage() {
             </p>
           </Link>
         </Card>
+      </div>
+
+      {/* Footer Quote */}
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <p className="text-center text-lg text-gray-600 italic">
+          트렌디한 우리는 철학합니다. 철학하는 우리는 트렌디합니다.
+        </p>
       </div>
     </div>
   )

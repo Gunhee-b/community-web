@@ -21,6 +21,31 @@ function CreateMeetingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Check if user can create meetings
+  const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host'
+
+  // Redirect if user doesn't have permission
+  if (!canCreateMeeting) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Card>
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🚫</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              권한이 없습니다
+            </h2>
+            <p className="text-gray-600 mb-6">
+              모임을 만들려면 '모임장' 또는 '관리자' 권한이 필요합니다.
+            </p>
+            <Button onClick={() => navigate('/meetings')}>
+              모임 목록으로 돌아가기
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData({

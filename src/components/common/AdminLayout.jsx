@@ -70,6 +70,16 @@ function AdminLayout() {
                   회원 관리
                 </Link>
                 <Link
+                  to="/admin/meetings"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive('/admin/meetings')
+                      ? 'bg-blue-700 text-white'
+                      : 'text-blue-100 hover:bg-blue-700'
+                  }`}
+                >
+                  모임 관리
+                </Link>
+                <Link
                   to="/admin/invites"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     isActive('/admin/invites')
