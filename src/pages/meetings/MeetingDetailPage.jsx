@@ -27,7 +27,10 @@ function MeetingDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState({
     location: '',
+    host_introduction: '',
     description: '',
+    host_style: '',
+    host_sns_link: '',
     start_datetime: '',
     end_datetime: '',
     max_participants: '',
@@ -367,7 +370,10 @@ function MeetingDetailPage() {
 
     setEditForm({
       location: meeting.location,
+      host_introduction: meeting.host_introduction || '',
       description: meeting.description || '',
+      host_style: meeting.host_style || '',
+      host_sns_link: meeting.host_sns_link || '',
       start_datetime: startDate.toISOString().slice(0, 16),
       end_datetime: endDate ? endDate.toISOString().slice(0, 16) : '',
       max_participants: meeting.max_participants.toString(),
@@ -392,7 +398,10 @@ function MeetingDetailPage() {
         .from('offline_meetings')
         .update({
           location: editForm.location,
+          host_introduction: editForm.host_introduction || null,
           description: editForm.description || null,
+          host_style: editForm.host_style || null,
+          host_sns_link: editForm.host_sns_link || null,
           start_datetime: editForm.start_datetime,
           end_datetime: editForm.end_datetime || null,
           max_participants: parseInt(editForm.max_participants),
@@ -577,9 +586,38 @@ function MeetingDetailPage() {
             {/* Naver Map Link right below location */}
             <LocationMapPreview location={meeting.location} showInDetail={true} />
 
+            {meeting.host_introduction && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">👤 모임장 소개</h3>
+                <p className="text-gray-700 whitespace-pre-wrap">{meeting.host_introduction}</p>
+              </div>
+            )}
+
             {meeting.description && (
               <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">📝 모임 상세</h3>
                 <p className="text-gray-700 whitespace-pre-wrap">{meeting.description}</p>
+              </div>
+            )}
+
+            {meeting.host_style && (
+              <div className="mb-4 p-3 bg-purple-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">✨ 모임 운영 방식 및 스타일</h3>
+                <p className="text-gray-700 whitespace-pre-wrap">{meeting.host_style}</p>
+              </div>
+            )}
+
+            {meeting.host_sns_link && (
+              <div className="mb-4 p-3 bg-green-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">🔗 모임장 SNS</h3>
+                <a
+                  href={meeting.host_sns_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline break-all"
+                >
+                  {meeting.host_sns_link}
+                </a>
               </div>
             )}
 
@@ -767,14 +805,55 @@ function MeetingDetailPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              모임 상세
+              모임장 소개 *
             </label>
             <textarea
-              value={editForm.description}
-              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              placeholder="모임에 대해 자유롭게 설명해주세요 (선택사항)"
+              required
+              value={editForm.host_introduction}
+              onChange={(e) => setEditForm({ ...editForm, host_introduction: e.target.value })}
+              placeholder="자기소개를 입력해주세요"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               rows="3"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 상세 *
+            </label>
+            <textarea
+              required
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              placeholder="모임에 대해 자유롭게 설명해주세요"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows="3"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 운영 방식 및 스타일
+            </label>
+            <textarea
+              value={editForm.host_style}
+              onChange={(e) => setEditForm({ ...editForm, host_style: e.target.value })}
+              placeholder="모임 운영 방식이나 스타일을 설명해주세요 (선택사항)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows="3"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임장 SNS 링크
+            </label>
+            <input
+              type="url"
+              value={editForm.host_sns_link}
+              onChange={(e) => setEditForm({ ...editForm, host_sns_link: e.target.value })}
+              placeholder="https://instagram.com/your-profile (선택사항)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
