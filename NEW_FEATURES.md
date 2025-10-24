@@ -185,13 +185,335 @@ npm run build
 
 ---
 
+## 3. 모임 이미지 업로드 및 크롭 기능 🖼️
+
+### 기능 설명
+- 모임 생성 및 수정 시 대표 이미지를 업로드할 수 있습니다
+- 드래그 기반의 직관적인 이미지 크롭 에디터 제공
+- 모바일과 데스크톱 모두 지원
+- 인물 사진 최적화를 위한 가이드 제공
+
+### 주요 기능
+
+#### 1. 이미지 업로드
+- 모임 생성 페이지에서 이미지 선택
+- 최대 파일 크기: 5MB
+- 지원 형식: JPG, PNG, GIF 등 모든 이미지 형식
+- 업로드 전 미리보기 제공
+
+#### 2. 이미지 크롭 에디터
+- **위치 조정**: 한 손가락 드래그 (모바일) / 일반 드래그 (PC)
+- **확대/축소**:
+  - 모바일: 두 손가락 핀치 제스처
+  - PC: Shift + 대각선 드래그 또는 마우스 휠
+- **고정 비율**: 4:3 비율로 자동 크롭
+- **실시간 줌 레벨 표시**: 1.0x ~ 3.0x
+
+#### 3. 자동 최적화
+- 출력 크기: 1200px (자동 설정)
+- 이미지 품질: 85% (자동 설정)
+- JPEG 형식으로 변환하여 저장
+- 비율 유지하며 리사이즈
+
+### 사용 방법
+
+#### 모임 생성 시
+1. **모임 만들기** 페이지에서 "모임 사진" 섹션 찾기
+2. 이미지 업로드 영역 클릭하여 파일 선택
+3. 이미지 미리보기 확인
+4. **🔧 이미지 크기 조정** 버튼 클릭 (선택사항)
+5. 크롭 에디터에서 이미지 조정:
+   - 드래그로 위치 이동
+   - 핀치/휠로 확대/축소
+6. **적용** 버튼 클릭
+7. 모임 생성 완료
+
+#### 모임 수정 시
+1. 모임 상세 페이지에서 **모임 수정** 버튼 클릭
+2. 수정 모달에서 이미지 섹션 찾기
+3. 새 이미지 업로드 또는 기존 이미지 제거
+4. 이미지 크기 조정 (선택사항)
+5. **수정** 버튼 클릭
+
+### 기술 구현
+
+#### 1. 이미지 크롭 컴포넌트
+```javascript
+// src/components/meetings/ImageAdjustModal.jsx
+import Cropper from 'react-easy-crop'
+
+function ImageAdjustModal({ isOpen, onClose, imagePreview, onConfirm }) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+
+  // 터치 제스처 지원
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      const distance = getTouchDistance(e.touches[0], e.touches[1])
+      setTouchDistance(distance)
+      setStartZoom(zoom)
+    }
+  }, [zoom])
+
+  return (
+    <div className="modal">
+      <Cropper
+        image={imagePreview}
+        crop={crop}
+        zoom={zoom}
+        aspect={4 / 3}
+        onCropChange={setCrop}
+        onZoomChange={setZoom}
+        onCropComplete={onCropComplete}
+      />
+    </div>
+  )
+}
+```
+
+#### 2. 이미지 크롭 유틸리티
+```javascript
+// src/utils/imageCrop.js
+export const getCroppedImg = (imageSrc, pixelCrop, maxWidth, maxHeight, quality) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.src = imageSrc
+
+    image.onload = () => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+
+      // 비율 유지하며 크기 계산
+      let outputWidth = pixelCrop.width
+      let outputHeight = pixelCrop.height
+
+      if (outputWidth > maxWidth || outputHeight > maxHeight) {
+        const scale = Math.min(maxWidth / outputWidth, maxHeight / outputHeight)
+        outputWidth = Math.floor(outputWidth * scale)
+        outputHeight = Math.floor(outputHeight * scale)
+      }
+
+      canvas.width = outputWidth
+      canvas.height = outputHeight
+
+      // 크롭된 이미지 그리기
+      ctx.drawImage(
+        image,
+        pixelCrop.x, pixelCrop.y,
+        pixelCrop.width, pixelCrop.height,
+        0, 0,
+        outputWidth, outputHeight
+      )
+
+      // Blob으로 변환
+      canvas.toBlob(resolve, 'image/jpeg', quality)
+    }
+  })
+}
+```
+
+#### 3. Supabase Storage 업로드
+```javascript
+// 크롭된 이미지 업로드
+if (croppedAreaPixels) {
+  const croppedBlob = await getCroppedImg(
+    imagePreview,
+    croppedAreaPixels,
+    1200,
+    1200,
+    0.85
+  )
+
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
+
+  const { error } = await supabase.storage
+    .from('meeting-images')
+    .upload(fileName, croppedBlob, {
+      cacheControl: '3600',
+      contentType: 'image/jpeg'
+    })
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('meeting-images')
+    .getPublicUrl(fileName)
+}
+```
+
+#### 4. Storage 버킷 설정
+```sql
+-- meeting-images 버킷 생성
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('meeting-images', 'meeting-images', true, 5242880, ARRAY['image/*']);
+
+-- Public 정책 (커스텀 인증 시스템용)
+CREATE POLICY "Anyone can upload meeting images"
+ON storage.objects FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'meeting-images');
+
+CREATE POLICY "Public read access for meeting images"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'meeting-images');
+```
+
+### 이미지 표시
+
+#### 모임 리스트
+```javascript
+// src/pages/meetings/MeetingsPage.jsx
+{meeting.image_url && (
+  <img
+    src={meeting.image_url}
+    alt={meeting.location}
+    className="w-full h-48 object-cover rounded-lg mb-4"
+  />
+)}
+```
+
+#### 모임 상세 페이지
+```javascript
+// src/pages/meetings/MeetingDetailPage.jsx
+{meeting.image_url && (
+  <img
+    src={meeting.image_url}
+    alt={meeting.location}
+    className="w-full h-64 object-cover rounded-lg mb-4"
+  />
+)}
+```
+
+### 크롭 에디터 조작법
+
+#### 모바일
+- **한 손가락 드래그**: 이미지 위치 이동
+- **두 손가락 핀치**: 확대/축소
+- **더블 탭**: 확대 (기본 기능)
+
+#### 데스크톱
+- **일반 드래그**: 이미지 위치 이동
+- **Shift + 대각선 드래그**: 확대/축소
+- **마우스 휠**: 확대/축소
+- **우클릭 + 드래그**: 확대/축소
+
+### 최적화 사항
+
+1. **파일 크기 제한**: 5MB 이하만 업로드 가능
+2. **자동 압축**: 85% 품질로 JPEG 변환
+3. **비율 고정**: 4:3 비율로 일관성 유지
+4. **리사이즈**: 최대 1200px로 자동 조정
+5. **캐시 제어**: 1시간 캐시 설정
+
+### 에러 처리
+
+```javascript
+// 파일 타입 검증
+if (!file.type.startsWith('image/')) {
+  setError('이미지 파일만 업로드할 수 있습니다')
+  return
+}
+
+// 파일 크기 검증
+if (file.size > 5 * 1024 * 1024) {
+  setError('이미지 크기는 5MB 이하여야 합니다')
+  return
+}
+
+// 업로드 에러 처리
+if (uploadError) {
+  throw new Error('이미지 업로드 중 오류가 발생했습니다')
+}
+```
+
+### 데이터베이스 마이그레이션
+
+```sql
+-- offline_meetings 테이블에 image_url 컬럼 추가
+ALTER TABLE offline_meetings
+ADD COLUMN IF NOT EXISTS image_url TEXT;
+```
+
+### 의존성 패키지
+
+```json
+{
+  "dependencies": {
+    "react-easy-crop": "^5.0.0"
+  }
+}
+```
+
+### Storage 정책 참고
+
+커스텀 인증 시스템을 사용하므로 `authenticated` 대신 `public` 역할을 사용합니다:
+
+```sql
+-- ❌ 작동 안 함 (Supabase Auth 전용)
+CREATE POLICY "Authenticated users can upload"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'meeting-images');
+
+-- ✅ 작동함 (커스텀 인증)
+CREATE POLICY "Anyone can upload meeting images"
+ON storage.objects FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'meeting-images');
+```
+
+### 주의사항
+
+1. **크롭 없이 업로드**: 크기 조정 버튼을 누르지 않아도 업로드 가능 (자동 리사이즈)
+2. **이미지 삭제**: 수정 시 이미지를 제거하면 Storage에서도 삭제됨
+3. **모바일 성능**: 큰 이미지는 모바일에서 느릴 수 있음 (5MB 제한 권장)
+4. **브라우저 지원**: 최신 브라우저에서만 테스트됨
+
+### 파일 구조
+
+```
+src/
+├── components/
+│   └── meetings/
+│       └── ImageAdjustModal.jsx       # 이미지 크롭 모달
+├── pages/
+│   └── meetings/
+│       ├── CreateMeetingPage.jsx      # 모임 생성 (이미지 업로드)
+│       ├── MeetingDetailPage.jsx      # 모임 상세 (이미지 표시/수정)
+│       └── MeetingsPage.jsx           # 모임 리스트 (이미지 표시)
+├── utils/
+│   └── imageCrop.js                   # 이미지 크롭 유틸리티
+└── supabase/
+    └── migrations/
+        ├── 20250125_add_meeting_image_url.sql
+        ├── 20250125_create_meeting_images_bucket.sql
+        └── 20250125_fix_storage_rls_policies.sql
+```
+
+### 테스트 체크리스트
+
+- [ ] 이미지 업로드 (모임 생성)
+- [ ] 이미지 미리보기 표시
+- [ ] 크롭 에디터 열기
+- [ ] 드래그로 위치 이동
+- [ ] 핀치/휠로 확대/축소
+- [ ] 크롭 적용 및 저장
+- [ ] 모임 리스트에서 이미지 표시
+- [ ] 모임 상세에서 이미지 표시
+- [ ] 이미지 수정 (모임 수정)
+- [ ] 이미지 제거 (모임 수정)
+- [ ] 크롭 없이 직접 업로드
+
+---
+
 ## 다음 개선 가능 사항
 
-1. **모임 수정 기능** (호스트 전용)
-2. **참가자 강제 퇴장** (관리자/호스트)
-3. **메시지 삭제** (본인 메시지만)
-4. **읽음 표시** (누가 메시지를 읽었는지)
-5. **타이핑 표시** (누가 입력 중인지)
-6. **이미지/파일 전송**
-7. **이모지 반응**
-8. **메시지 검색**
+1. **이미지 필터 효과** (밝기, 대비, 채도 조정)
+2. **다중 이미지 업로드** (갤러리 형식)
+3. **이미지 회전 기능**
+4. **참가자 강제 퇴장** (관리자/호스트)
+5. **메시지 삭제** (본인 메시지만)
+6. **읽음 표시** (누가 메시지를 읽었는지)
+7. **타이핑 표시** (누가 입력 중인지)
+8. **이모지 반응**
+9. **메시지 검색**

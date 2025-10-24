@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
@@ -23,7 +23,6 @@ function MeetingDetailPage() {
   const [loading, setLoading] = useState(true)
   const [chats, setChats] = useState([])
   const [newMessage, setNewMessage] = useState('')
-  const chatEndRef = useRef(null)
 
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -83,11 +82,6 @@ function MeetingDetailPage() {
       window.removeEventListener('storage', handleStorageEvent)
     }
   }, [id, isParticipant, user.id])
-
-  useEffect(() => {
-    // Auto-scroll to bottom when new messages arrive
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chats])
 
 
   const fetchMeetingData = async () => {
@@ -910,7 +904,6 @@ function MeetingDetailPage() {
                         </div>
                       )
                     })}
-                    <div ref={chatEndRef} />
                   </>
                 )}
               </div>
