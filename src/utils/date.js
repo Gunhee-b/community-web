@@ -60,3 +60,21 @@ export const getDday = (date) => {
   if (diffDays < 0) return `D+${Math.abs(diffDays)}`
   return `D-${diffDays}`
 }
+
+/**
+ * Convert ISO datetime to local datetime string for input[type="datetime-local"]
+ * Returns format: YYYY-MM-DDTHH:mm
+ */
+export const toLocalDateTimeString = (date) => {
+  if (!date) return ''
+  const dateObj = typeof date === 'string' ? parseISO(date) : date
+
+  // Get local date/time components
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const hours = String(dateObj.getHours()).padStart(2, '0')
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0')
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}

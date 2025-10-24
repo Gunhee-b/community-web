@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { useNotificationStore } from '../../store/notificationStore'
-import { formatDate, getDday } from '../../utils/date'
+import { formatDate, getDday, toLocalDateTimeString } from '../../utils/date'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
@@ -364,18 +364,15 @@ function MeetingDetailPage() {
   const handleEditClick = () => {
     if (!meeting) return
 
-    // Format datetime for input (YYYY-MM-DDTHH:mm)
-    const startDate = new Date(meeting.start_datetime)
-    const endDate = meeting.end_datetime ? new Date(meeting.end_datetime) : null
-
+    // Format datetime for input (YYYY-MM-DDTHH:mm) using local timezone
     setEditForm({
       location: meeting.location,
       host_introduction: meeting.host_introduction || '',
       description: meeting.description || '',
       host_style: meeting.host_style || '',
       host_sns_link: meeting.host_sns_link || '',
-      start_datetime: startDate.toISOString().slice(0, 16),
-      end_datetime: endDate ? endDate.toISOString().slice(0, 16) : '',
+      start_datetime: toLocalDateTimeString(meeting.start_datetime),
+      end_datetime: toLocalDateTimeString(meeting.end_datetime),
       max_participants: meeting.max_participants.toString(),
       purpose: meeting.purpose
     })
@@ -386,10 +383,16 @@ function MeetingDetailPage() {
     e.preventDefault()
 
     try {
+      // Convert datetime-local strings to ISO format (UTC)
+      // datetime-local format: YYYY-MM-DDTHH:mm (local time)
+      // ISO format: YYYY-MM-DDTHH:mm:ss.sssZ (UTC time)
+      const startDatetimeISO = new Date(editForm.start_datetime).toISOString()
+      const endDatetimeISO = editForm.end_datetime ? new Date(editForm.end_datetime).toISOString() : null
+
       console.log('Updating meeting with:', {
         location: editForm.location,
-        start_datetime: editForm.start_datetime,
-        end_datetime: editForm.end_datetime || null,
+        start_datetime: startDatetimeISO,
+        end_datetime: endDatetimeISO,
         max_participants: parseInt(editForm.max_participants),
         purpose: editForm.purpose
       })
@@ -402,13 +405,13 @@ function MeetingDetailPage() {
           description: editForm.description || null,
           host_style: editForm.host_style || null,
           host_sns_link: editForm.host_sns_link || null,
-          start_datetime: editForm.start_datetime,
-          end_datetime: editForm.end_datetime || null,
+          start_datetime: startDatetimeISO,
+          end_datetime: endDatetimeISO,
           max_participants: parseInt(editForm.max_participants),
           purpose: editForm.purpose
         })
         .eq('id', id)
-        .select()
+        .select('*, host:users!host_id(username)')
 
       console.log('Update result:', { data, error })
 
@@ -416,7 +419,9 @@ function MeetingDetailPage() {
 
       alert('모임 정보가 수정되었습니다')
       setEditModalOpen(false)
-      fetchMeetingData()
+
+      // Fetch updated data to ensure UI is refreshed with latest info
+      await fetchMeetingData()
     } catch (error) {
       console.error('Error updating meeting:', error)
       alert(error.message || '모임 수정 중 오류가 발생했습니다')
@@ -762,7 +767,7 @@ function MeetingDetailPage() {
           <Card>
             <h2 className="text-lg font-bold text-gray-900 mb-4">참가자 목록</h2>
             <div className="space-y-2">
-              {participants.map((participant, index) => (
+              {participants.map((participant) => (
                 <div
                   key={participant.id}
                   className="flex items-center justify-between p-2 bg-gray-50 rounded"
