@@ -4,11 +4,13 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { useNotificationStore } from '../../store/notificationStore'
 import { formatDate, getDday, toLocalDateTimeString } from '../../utils/date'
+import { getCroppedImg } from '../../utils/imageCrop'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
 import Modal from '../../components/common/Modal'
 import LocationMapPreview from '../../components/meetings/LocationMapPreview'
+import ImageAdjustModal from '../../components/meetings/ImageAdjustModal'
 
 function MeetingDetailPage() {
   const { id } = useParams()
@@ -36,6 +38,14 @@ function MeetingDetailPage() {
     max_participants: '',
     purpose: 'coffee'
   })
+  const [editImageFile, setEditImageFile] = useState(null)
+  const [editImagePreview, setEditImagePreview] = useState(null)
+  const [isEditImageModalOpen, setIsEditImageModalOpen] = useState(false)
+  const [editCroppedAreaPixels, setEditCroppedAreaPixels] = useState(null)
+
+  // Fixed size and quality
+  const editImageSize = 1200
+  const editImageQuality = 85
 
   useEffect(() => {
     fetchMeetingData()
@@ -361,6 +371,56 @@ function MeetingDetailPage() {
     }
   }
 
+  const handleEditImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('이미지 파일만 업로드할 수 있습니다')
+        return
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('이미지 크기는 5MB 이하여야 합니다')
+        return
+      }
+
+      setEditImageFile(file)
+
+      // Create preview and get dimensions
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result)
+
+        // Get image dimensions
+        const img = new Image()
+        img.onload = () => {
+          const maxDimension = Math.max(img.width, img.height)
+          if (maxDimension > 1200) {
+            setEditImageSize(1200)
+          } else if (maxDimension > 800) {
+            setEditImageSize(800)
+          } else {
+            setEditImageSize(maxDimension)
+          }
+        }
+        img.src = reader.result
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveEditImage = () => {
+    setEditImageFile(null)
+    setEditImagePreview(null)
+    setEditCroppedAreaPixels(null)
+  }
+
+  const handleEditImageAdjustConfirm = (cropPixels) => {
+    setEditCroppedAreaPixels(cropPixels)
+  }
+
   const handleEditClick = () => {
     if (!meeting) return
 
@@ -376,6 +436,11 @@ function MeetingDetailPage() {
       max_participants: meeting.max_participants.toString(),
       purpose: meeting.purpose
     })
+
+    // Set existing image preview
+    setEditImagePreview(meeting.image_url || null)
+    setEditImageFile(null)
+
     setEditModalOpen(true)
   }
 
@@ -389,12 +454,103 @@ function MeetingDetailPage() {
       const startDatetimeISO = new Date(editForm.start_datetime).toISOString()
       const endDatetimeISO = editForm.end_datetime ? new Date(editForm.end_datetime).toISOString() : null
 
+      let imageUrl = meeting.image_url // Keep existing image URL by default
+
+      // Upload new image if provided
+      if (editImageFile && editImagePreview) {
+        let croppedBlob
+
+        // If crop data exists, use it. Otherwise, use original image with resize only
+        if (editCroppedAreaPixels) {
+          croppedBlob = await getCroppedImg(
+            editImagePreview,
+            editCroppedAreaPixels,
+            editImageSize,
+            editImageSize,
+            editImageQuality / 100
+          )
+        } else {
+          // No crop data - convert original image to blob with resize
+          const response = await fetch(editImagePreview)
+          const blob = await response.blob()
+
+          // Create a simple resize without crop
+          const img = new Image()
+          img.src = editImagePreview
+          await new Promise((resolve) => { img.onload = resolve })
+
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+
+          // Maintain aspect ratio
+          if (width > editImageSize || height > editImageSize) {
+            if (width > height) {
+              height = (height * editImageSize) / width
+              width = editImageSize
+            } else {
+              width = (width * editImageSize) / height
+              height = editImageSize
+            }
+          }
+
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+
+          croppedBlob = await new Promise((resolve) => {
+            canvas.toBlob(resolve, 'image/jpeg', editImageQuality / 100)
+          })
+        }
+
+        const fileExt = 'jpg' // Always use jpg for cropped images
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('meeting-images')
+          .upload(filePath, croppedBlob, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: 'image/jpeg'
+          })
+
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError)
+          throw new Error('이미지 업로드 중 오류가 발생했습니다')
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('meeting-images')
+          .getPublicUrl(filePath)
+
+        imageUrl = publicUrl
+
+        // Delete old image if exists
+        if (meeting.image_url) {
+          const oldImagePath = meeting.image_url.split('/').pop()
+          await supabase.storage
+            .from('meeting-images')
+            .remove([oldImagePath])
+        }
+      } else if (!editImagePreview && meeting.image_url) {
+        // If image was removed (no preview and there was an image)
+        const oldImagePath = meeting.image_url.split('/').pop()
+        await supabase.storage
+          .from('meeting-images')
+          .remove([oldImagePath])
+        imageUrl = null
+      }
+
       console.log('Updating meeting with:', {
         location: editForm.location,
         start_datetime: startDatetimeISO,
         end_datetime: endDatetimeISO,
         max_participants: parseInt(editForm.max_participants),
-        purpose: editForm.purpose
+        purpose: editForm.purpose,
+        image_url: imageUrl
       })
 
       const { data, error } = await supabase
@@ -408,7 +564,8 @@ function MeetingDetailPage() {
           start_datetime: startDatetimeISO,
           end_datetime: endDatetimeISO,
           max_participants: parseInt(editForm.max_participants),
-          purpose: editForm.purpose
+          purpose: editForm.purpose,
+          image_url: imageUrl
         })
         .eq('id', id)
         .select('*, host:users!host_id(username)')
@@ -559,6 +716,15 @@ function MeetingDetailPage() {
         {/* Meeting Info */}
         <div className="md:col-span-2">
           <Card className="mb-6">
+            {/* Meeting Image */}
+            {meeting.image_url && (
+              <img
+                src={meeting.image_url}
+                alt={meeting.location}
+                className="w-full h-64 object-cover rounded-lg mb-4"
+              />
+            )}
+
             <div className="mb-4">
               <span
                 className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
@@ -864,6 +1030,64 @@ function MeetingDetailPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 사진 (선택사항)
+            </label>
+            <div className="mt-1">
+              {editImagePreview ? (
+                <div className="relative">
+                  <img
+                    src={editImagePreview}
+                    alt="미리보기"
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveEditImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <svg className="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="mb-2 text-sm text-gray-500">
+                      <span className="font-semibold">클릭하여 업로드</span>
+                    </p>
+                    <p className="text-xs text-gray-500">PNG, JPG, GIF (최대 5MB)</p>
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleEditImageChange}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Image adjustment button - only show when new image is selected */}
+            {editImageFile && editImagePreview && (
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => setIsEditImageModalOpen(true)}
+                >
+                  🔧 이미지 크기 조정
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               시작 시간 *
             </label>
             <input
@@ -933,6 +1157,14 @@ function MeetingDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Image Adjustment Modal for Edit */}
+      <ImageAdjustModal
+        isOpen={isEditImageModalOpen}
+        onClose={() => setIsEditImageModalOpen(false)}
+        imagePreview={editImagePreview}
+        onConfirm={handleEditImageAdjustConfirm}
+      />
     </div>
   )
 }

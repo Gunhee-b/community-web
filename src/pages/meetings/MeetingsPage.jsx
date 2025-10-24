@@ -95,6 +95,15 @@ function MeetingsPage() {
           {meetings.map((meeting) => (
             <Card key={meeting.id} hoverable>
               <Link to={`/meetings/${meeting.id}`}>
+                {/* Image */}
+                {meeting.image_url && (
+                  <img
+                    src={meeting.image_url}
+                    alt={meeting.location}
+                    className="w-full h-48 object-cover rounded-lg mb-4"
+                  />
+                )}
+
                 <div className="mb-3 flex items-center justify-between">
                   <span
                     className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${

@@ -6,6 +6,8 @@ import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import Card from '../../components/common/Card'
 import LocationMapPreview from '../../components/meetings/LocationMapPreview'
+import ImageAdjustModal from '../../components/meetings/ImageAdjustModal'
+import { getCroppedImg } from '../../utils/imageCrop'
 
 function CreateMeetingPage() {
   const navigate = useNavigate()
@@ -22,6 +24,14 @@ function CreateMeetingPage() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+
+  // Fixed size and quality
+  const imageSize = 1200
+  const imageQuality = 85
 
   // Check if user can create meetings
   const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host'
@@ -55,6 +65,58 @@ function CreateMeetingPage() {
       [name]: value,
     })
     setError('')
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('이미지 파일만 업로드할 수 있습니다')
+        return
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('이미지 크기는 5MB 이하여야 합니다')
+        return
+      }
+
+      setImageFile(file)
+
+      // Create preview and get dimensions
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result)
+
+        // Get image dimensions
+        const img = new Image()
+        img.onload = () => {
+          // Suggest optimal size based on image dimensions
+          const maxDimension = Math.max(img.width, img.height)
+          if (maxDimension > 1200) {
+            setImageSize(1200)
+          } else if (maxDimension > 800) {
+            setImageSize(800)
+          } else {
+            setImageSize(maxDimension)
+          }
+        }
+        img.src = reader.result
+      }
+      reader.readAsDataURL(file)
+      setError('')
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
+    setCroppedAreaPixels(null)
+  }
+
+  const handleImageAdjustConfirm = (cropPixels) => {
+    setCroppedAreaPixels(cropPixels)
   }
 
   const handleSubmit = async (e) => {
@@ -105,6 +167,81 @@ function CreateMeetingPage() {
     setLoading(true)
 
     try {
+      let imageUrl = null
+
+      // Upload image to Supabase Storage if provided
+      if (imageFile && imagePreview) {
+        let croppedBlob
+
+        // If crop data exists, use it. Otherwise, use original image with resize only
+        if (croppedAreaPixels) {
+          croppedBlob = await getCroppedImg(
+            imagePreview,
+            croppedAreaPixels,
+            imageSize,
+            imageSize,
+            imageQuality / 100
+          )
+        } else {
+          // No crop data - convert original image to blob with resize
+          const response = await fetch(imagePreview)
+          const blob = await response.blob()
+
+          // Create a simple resize without crop
+          const img = new Image()
+          img.src = imagePreview
+          await new Promise((resolve) => { img.onload = resolve })
+
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+
+          // Maintain aspect ratio
+          if (width > imageSize || height > imageSize) {
+            if (width > height) {
+              height = (height * imageSize) / width
+              width = imageSize
+            } else {
+              width = (width * imageSize) / height
+              height = imageSize
+            }
+          }
+
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+
+          croppedBlob = await new Promise((resolve) => {
+            canvas.toBlob(resolve, 'image/jpeg', imageQuality / 100)
+          })
+        }
+
+        const fileExt = 'jpg' // Always use jpg for cropped images
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('meeting-images')
+          .upload(filePath, croppedBlob, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: 'image/jpeg'
+          })
+
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError)
+          throw new Error('이미지 업로드 중 오류가 발생했습니다')
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('meeting-images')
+          .getPublicUrl(filePath)
+
+        imageUrl = publicUrl
+      }
+
       const { data: meetingData, error: meetingError } = await supabase
         .from('offline_meetings')
         .insert([
@@ -117,6 +254,7 @@ function CreateMeetingPage() {
             end_datetime: endDatetime.toISOString(),
             max_participants: parseInt(formData.maxParticipants),
             purpose: formData.purpose,
+            image_url: imageUrl,
           },
         ])
         .select('*')
@@ -135,7 +273,7 @@ function CreateMeetingPage() {
       navigate(`/meetings/${meetingData.id}`)
     } catch (err) {
       console.error('Error creating meeting:', err)
-      setError('모임 생성 중 오류가 발생했습니다')
+      setError(err.message || '모임 생성 중 오류가 발생했습니다')
     } finally {
       setLoading(false)
     }
@@ -187,6 +325,64 @@ function CreateMeetingPage() {
               rows="3"
               required
             />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              모임 사진 (선택사항)
+            </label>
+            <div className="mt-1">
+              {imagePreview ? (
+                <div className="relative">
+                  <img
+                    src={imagePreview}
+                    alt="미리보기"
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <svg className="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="mb-2 text-sm text-gray-500">
+                      <span className="font-semibold">클릭하여 업로드</span> 또는 드래그 앤 드롭
+                    </p>
+                    <p className="text-xs text-gray-500">PNG, JPG, GIF (최대 5MB)</p>
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Image adjustment button - only show when image is selected */}
+            {imagePreview && (
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => setIsImageModalOpen(true)}
+                >
+                  🔧 이미지 크기 조정
+                </Button>
+              </div>
+            )}
           </div>
 
           <Input
@@ -295,6 +491,14 @@ function CreateMeetingPage() {
           </div>
         </form>
       </Card>
+
+      {/* Image Adjustment Modal */}
+      <ImageAdjustModal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        imagePreview={imagePreview}
+        onConfirm={handleImageAdjustConfirm}
+      />
     </div>
   )
 }
