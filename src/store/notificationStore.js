@@ -10,13 +10,14 @@ export const useNotificationStore = create(
       addNotification: (notification) => {
         const state = get()
 
-        // Check if we already have a notification for this message ID
+        // Check if we already have an UNREAD notification for this message ID
+        // This allows the same message to create a new notification if the previous one was read and deleted
         if (notification.messageId) {
           const exists = state.notifications.some(
-            (n) => n.messageId === notification.messageId
+            (n) => n.messageId === notification.messageId && !n.read
           )
           if (exists) {
-            console.log('Notification already exists for message:', notification.messageId)
+            console.log('Unread notification already exists for message:', notification.messageId)
             return
           }
         }

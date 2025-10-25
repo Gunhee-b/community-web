@@ -37,7 +37,9 @@ function NotificationBell() {
   }, [isOpen])
 
   const handleNotificationClick = (notification) => {
-    markAsRead(notification.id)
+    // Delete notification instead of marking as read
+    // This removes it from localStorage completely
+    deleteNotification(notification.id)
     setIsOpen(false)
 
     // Navigate based on notification type
