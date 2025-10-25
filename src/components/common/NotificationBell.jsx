@@ -16,6 +16,9 @@ function NotificationBell() {
   const deleteNotification = useNotificationStore((state) => state.deleteNotification)
   const clearAllNotifications = useNotificationStore((state) => state.clearAllNotifications)
 
+  // Filter to show only unread notifications
+  const unreadNotifications = notifications.filter((n) => !n.read)
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -92,15 +95,7 @@ function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h3 className="text-lg font-semibold text-gray-900">알림</h3>
             <div className="flex space-x-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                >
-                  모두 읽음
-                </button>
-              )}
-              {notifications.length > 0 && (
+              {unreadNotifications.length > 0 && (
                 <button
                   onClick={() => {
                     if (window.confirm('모든 알림을 삭제하시겠습니까?')) {
@@ -117,12 +112,12 @@ function NotificationBell() {
 
           {/* Notification List */}
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {unreadNotifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-500">
-                <p>알림이 없습니다</p>
+                <p>읽지 않은 알림이 없습니다</p>
               </div>
             ) : (
-              notifications.map((notification) => (
+              unreadNotifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={`px-4 py-3 border-b hover:bg-gray-50 cursor-pointer transition-colors ${

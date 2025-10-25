@@ -8,6 +8,19 @@ export const useNotificationStore = create(
       unreadCount: 0,
 
       addNotification: (notification) => {
+        const state = get()
+
+        // Check if we already have a notification for this message ID
+        if (notification.messageId) {
+          const exists = state.notifications.some(
+            (n) => n.messageId === notification.messageId
+          )
+          if (exists) {
+            console.log('Notification already exists for message:', notification.messageId)
+            return
+          }
+        }
+
         const newNotification = {
           id: Date.now() + Math.random(),
           timestamp: new Date().toISOString(),

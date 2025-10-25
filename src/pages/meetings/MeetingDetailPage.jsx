@@ -175,6 +175,7 @@ function MeetingDetailPage() {
             title: `모임 채팅 - 새 메시지`,
             message: `${message.anonymous_name}: ${message.message}`,
             meetingId: id,
+            messageId: message.id, // Add unique message ID to prevent duplicates
           })
         }
       })
@@ -208,6 +209,7 @@ function MeetingDetailPage() {
               title: `모임 채팅 - 새 메시지`,
               message: `${payload.new.anonymous_name}: ${payload.new.message}`,
               meetingId: id,
+              messageId: payload.new.id, // Add unique message ID to prevent duplicates
             })
           }
 
