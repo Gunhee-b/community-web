@@ -262,16 +262,17 @@ addNotification: (notification) => {
 2. 콘솔에서 에러 확인
 3. 브라우저 새로고침
 
-### 중복 알림이 계속 생성되는 경우
-1. **브라우저 콘솔 확인**: "Notification already exists for message: xxx" 로그가 나오는지 확인
+### ~~중복 알림이 계속 생성되는 경우~~ ✅ v2.3.1에서 해결됨
+~~이전에는 알림을 삭제해도 시간이 지나면 다시 나타나는 문제가 있었습니다.~~
+- **원인**: setInterval의 stale closure 문제로 폴링이 오래된 chats 값을 참조
+- **해결**: useRef를 사용하여 항상 최신 chats 값을 참조하도록 수정
+- **결과**: 알림 삭제 후 다시 나타나는 문제 완전히 해결
+
+만약 여전히 문제가 발생한다면:
+1. **브라우저 콘솔 확인**: "Unread notification already exists for message: xxx" 로그 확인
 2. **localStorage 확인**: 개발자 도구 → Application → Local Storage → notification-storage 확인
 3. **임시 해결**: `localStorage.removeItem('notification-storage')` 실행 후 새로고침
 4. **완전 초기화**: `localStorage.clear()` 실행 후 새로고침
-
-### 읽은 알림이 계속 보이는 경우
-1. 브라우저 콘솔에서 상태 확인: `useNotificationStore.getState().notifications`
-2. 읽음 처리가 안 되었을 가능성 - 알림을 다시 클릭
-3. localStorage 데이터 확인
 
 ### 알림 클릭이 안 되는 경우
 1. 브라우저 캐시 삭제
@@ -302,10 +303,16 @@ addNotification: (notification) => {
 
 ---
 
-**버전:** 2.3.0
+**버전:** 2.3.1
 **최종 업데이트:** 2025년 10월 25일
 
 ## 📝 변경 이력
+
+### v2.3.1 (2025-10-25) - 🐛 버그 수정
+- ✅ **Stale Closure 문제 해결**: 폴링에서 오래된 chats 값을 참조하던 문제 수정
+  - `useRef`를 사용하여 항상 최신 chats 값을 참조
+  - 알림 삭제 후 다시 나타나는 문제 완전히 해결
+  - MeetingDetailPage에서 `chatsRef`로 최신 상태 보장
 
 ### v2.3.0 (2025-10-25)
 - ✅ 알림 클릭 시 완전 삭제로 변경 (markAsRead 대신 deleteNotification 사용)

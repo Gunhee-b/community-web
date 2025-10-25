@@ -36,12 +36,30 @@ const handleDeleteMeeting = async () => {
 
 ---
 
-## 2. 실시간 채팅 알림 기능 🔔
+## 2. 웹 기반 채팅 알림 시스템 🔔 (v2.3.1)
 
 ### 기능 설명
-- 다른 사용자가 채팅 메시지를 보내면 브라우저 알림을 받습니다
-- 다른 탭이나 창을 사용 중일 때만 알림이 나타납니다
+- 다른 사용자가 채팅 메시지를 보내면 웹 페이지 내부의 알림 벨에 알림이 표시됩니다
+- 브라우저 알림 권한이 필요 없습니다
 - 본인이 보낸 메시지는 알림이 가지 않습니다
+- **실제 사용자 닉네임**으로 알림 표시 (익명 이름 대신)
+
+### 주요 개선사항 (v2.3.0 ~ v2.3.1)
+
+#### ✅ 알림 클릭 시 자동 삭제 (v2.3.0)
+- 이전: `markAsRead`로 읽음 표시만 하고 localStorage에 계속 저장
+- 변경: `deleteNotification`으로 완전히 삭제하여 깔끔한 관리
+
+#### ✅ 중복 체크 로직 개선 (v2.3.0)
+- 이전: 전체 알림 배열에서 `messageId` 확인 (읽은 알림 포함)
+- 변경: **읽지 않은 알림만** 확인하도록 수정
+- 효과: localStorage 용량 최적화
+
+#### ✅ Stale Closure 문제 해결 (v2.3.1)
+- **문제**: 알림을 삭제해도 5초 후 다시 나타남
+- **원인**: setInterval의 stale closure 문제로 폴링이 오래된 chats 값을 참조
+- **해결**: `useRef`를 사용하여 항상 최신 chats 값을 참조
+- **결과**: 알림 삭제 후 다시 나타나는 문제 완전히 해결
 
 ### 작동 조건
 1. **브라우저 알림 권한 허용** (자동으로 요청)
@@ -503,6 +521,132 @@ src/
 - [ ] 이미지 수정 (모임 수정)
 - [ ] 이미지 제거 (모임 수정)
 - [ ] 크롭 없이 직접 업로드
+
+---
+
+## 4. 채팅 기능 개선 💬 (v2.4.0)
+
+### 기능 설명
+- 채팅에서 **실제 사용자 닉네임** 표시 (익명 이름 대신)
+- **메시지 전송 시간** 표시 ("3분 전", "1시간 전" 등)
+- 채팅방 제목 변경: "익명 채팅방" → "모임 채팅방"
+
+### 주요 변경사항
+
+#### ✅ 실제 닉네임 표시
+```javascript
+// 이전: 참가자1, 참가자2
+{chat.anonymous_name}
+
+// 변경 후: 홍길동, 김철수
+{chat.user?.username || chat.anonymous_name}
+```
+
+**채팅 조회 시 users 테이블과 join:**
+```javascript
+const { data } = await supabase
+  .from('meeting_chats')
+  .select('*, user:users!user_id(username)')
+  .eq('meeting_id', id)
+  .order('created_at', { ascending: true })
+```
+
+#### ✅ 메시지 전송 시간 표시
+```javascript
+<div className="text-xs opacity-60">
+  {formatDistanceToNow(new Date(chat.created_at), {
+    addSuffix: true,
+    locale: ko,
+  })}
+</div>
+```
+
+**표시 형식:**
+- "방금 전"
+- "3분 전"
+- "1시간 전"
+- "2일 전"
+
+#### ✅ Realtime 메시지에도 username 표시
+- Realtime으로 새 메시지 도착 시 sender의 username 조회
+- 알림에도 실제 닉네임 표시
+
+```javascript
+// Realtime 콜백에서 username 조회
+const { data: senderData } = await supabase
+  .from('users')
+  .select('username')
+  .eq('id', payload.new.user_id)
+  .single()
+
+const senderName = senderData?.username || payload.new.anonymous_name
+```
+
+### UI 변화
+
+**이전:**
+```
+참가자2
+안녕하세요!
+```
+
+**변경 후:**
+```
+홍길동
+안녕하세요!
+3분 전
+```
+
+**주최자:**
+```
+👑 김철수 (주최자)
+모임 시간 변경되었습니다
+5분 전
+```
+
+### 기술 구현
+
+#### 1. date-fns 라이브러리 사용
+```javascript
+import { formatDistanceToNow } from 'date-fns'
+import { ko } from 'date-fns/locale'
+```
+
+#### 2. 채팅 UI 구조
+```javascript
+<div className="inline-block max-w-xs px-4 py-2 rounded-lg bg-blue-500 text-white">
+  {/* 닉네임 */}
+  <div className="text-xs mb-1 opacity-75 font-medium">
+    {isHost && '👑 '}
+    {chat.user?.username || chat.anonymous_name}
+    {isHost && ' (주최자)'}
+  </div>
+
+  {/* 메시지 */}
+  <div className="mb-1">{chat.message}</div>
+
+  {/* 시간 */}
+  <div className="text-xs opacity-60">
+    {formatDistanceToNow(new Date(chat.created_at), {
+      addSuffix: true,
+      locale: ko,
+    })}
+  </div>
+</div>
+```
+
+### 장점
+
+1. ✅ **사용자 식별 용이**: 실제 닉네임으로 누가 말하는지 명확히 파악
+2. ✅ **시간 정보**: 언제 보낸 메시지인지 바로 확인 가능
+3. ✅ **사용자 경험 향상**: 익명성보다 실명제가 더 적합한 모임 특성 반영
+4. ✅ **알림 개선**: 알림에도 실제 닉네임 표시로 누가 보냈는지 파악 쉬움
+
+### 주의사항
+
+- 기존 `anonymous_name` 필드는 fallback으로 유지
+- `user` 테이블과 join하므로 약간의 쿼리 성능 영향
+- Realtime 메시지는 추가 쿼리로 username 조회
 
 ---
 

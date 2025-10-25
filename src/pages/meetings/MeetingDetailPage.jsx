@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { useNotificationStore } from '../../store/notificationStore'
 import { formatDate, getDday, toLocalDateTimeString } from '../../utils/date'
+import { formatDistanceToNow } from 'date-fns'
+import { ko } from 'date-fns/locale'
 import { getCroppedImg } from '../../utils/imageCrop'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
@@ -23,6 +25,14 @@ function MeetingDetailPage() {
   const [loading, setLoading] = useState(true)
   const [chats, setChats] = useState([])
   const [newMessage, setNewMessage] = useState('')
+
+  // Use ref to avoid stale closure in polling interval
+  const chatsRef = useRef(chats)
+
+  // Update ref whenever chats change
+  useEffect(() => {
+    chatsRef.current = chats
+  }, [chats])
 
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -135,7 +145,7 @@ function MeetingDetailPage() {
   const fetchChats = async () => {
     const { data, error } = await supabase
       .from('meeting_chats')
-      .select('*')
+      .select('*, user:users!user_id(username)')
       .eq('meeting_id', id)
       .order('created_at', { ascending: true })
 
@@ -151,7 +161,7 @@ function MeetingDetailPage() {
   const fetchChatsWithNotification = async () => {
     const { data, error } = await supabase
       .from('meeting_chats')
-      .select('*')
+      .select('*, user:users!user_id(username)')
       .eq('meeting_id', id)
       .order('created_at', { ascending: true })
 
@@ -161,19 +171,21 @@ function MeetingDetailPage() {
     }
 
     if (data) {
-      // Check for new messages
+      // Check for new messages using ref to get latest chats value
+      // This prevents stale closure issue in setInterval
       const newMessages = data.filter(
-        (newChat) => !chats.some((existingChat) => existingChat.id === newChat.id)
+        (newChat) => !chatsRef.current.some((existingChat) => existingChat.id === newChat.id)
       )
 
       // Send notification for new messages from other users
       newMessages.forEach((message) => {
         if (message.user_id !== user.id) {
           console.log('New message detected via polling, adding notification')
+          const senderName = message.user?.username || message.anonymous_name
           addNotification({
             type: 'chat',
             title: `모임 채팅 - 새 메시지`,
-            message: `${message.anonymous_name}: ${message.message}`,
+            message: `${senderName}: ${message.message}`,
             meetingId: id,
             messageId: message.id, // Add unique message ID to prevent duplicates
           })
@@ -197,28 +209,34 @@ function MeetingDetailPage() {
           table: 'meeting_chats',
           filter: `meeting_id=eq.${id}`,
         },
-        (payload) => {
+        async (payload) => {
           console.log('New message received via realtime:', payload.new)
 
           // Add notification if message is from someone else
           if (payload.new.user_id !== user.id) {
             console.log('Message from another user, adding notification')
 
+            // Fetch sender's username
+            const { data: senderData } = await supabase
+              .from('users')
+              .select('username')
+              .eq('id', payload.new.user_id)
+              .single()
+
+            const senderName = senderData?.username || payload.new.anonymous_name
+
             addNotification({
               type: 'chat',
               title: `모임 채팅 - 새 메시지`,
-              message: `${payload.new.anonymous_name}: ${payload.new.message}`,
+              message: `${senderName}: ${payload.new.message}`,
               meetingId: id,
               messageId: payload.new.id, // Add unique message ID to prevent duplicates
             })
           }
 
-          setChats((prev) => {
-            // Avoid duplicates
-            const exists = prev.some(chat => chat.id === payload.new.id)
-            if (exists) return prev
-            return [...prev, payload.new]
-          })
+          // Fetch chats to get user information
+          // This ensures we have the username for display
+          fetchChats()
         }
       )
       .subscribe((status) => {
@@ -869,7 +887,7 @@ function MeetingDetailPage() {
           {isParticipant && (
             <Card>
               <h2 className="text-xl font-bold text-gray-900 mb-4">
-                익명 채팅방
+                모임 채팅방
               </h2>
               <div className="h-96 overflow-y-auto mb-4 border rounded-lg p-4 bg-gray-50">
                 {chats.length === 0 ? (
@@ -898,10 +916,16 @@ function MeetingDetailPage() {
                           >
                             <div className="text-xs mb-1 opacity-75 font-medium">
                               {isHost && '👑 '}
-                              {chat.anonymous_name}
+                              {chat.user?.username || chat.anonymous_name}
                               {isHost && ' (주최자)'}
                             </div>
-                            <div>{chat.message}</div>
+                            <div className="mb-1">{chat.message}</div>
+                            <div className="text-xs opacity-60">
+                              {formatDistanceToNow(new Date(chat.created_at), {
+                                addSuffix: true,
+                                locale: ko,
+                              })}
+                            </div>
                           </div>
                         </div>
                       )
