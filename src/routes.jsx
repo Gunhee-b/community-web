@@ -26,6 +26,7 @@ import MeetingDetailPage from './pages/meetings/MeetingDetailPage'
 // Question Pages
 import QuestionsListPage from './pages/questions/QuestionsListPage'
 import QuestionDetailPage from './pages/questions/QuestionDetailPage'
+import WriteAnswerPage from './pages/questions/WriteAnswerPage'
 
 // Test Pages
 import StorageTest from './pages/StorageTest'
@@ -122,6 +123,7 @@ function AppRoutes() {
         {/* Question Routes */}
         <Route path="questions" element={<QuestionsListPage />} />
         <Route path="questions/:id" element={<QuestionDetailPage />} />
+        <Route path="questions/:id/write-answer" element={<WriteAnswerPage />} />
 
         {/* Test Routes */}
         <Route path="storage-test" element={<StorageTest />} />
