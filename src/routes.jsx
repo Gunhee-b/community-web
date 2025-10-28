@@ -43,6 +43,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const user = useAuthStore((state) => state.user)
 
   if (!user) {
+    alert('로그인 후 이용 부탁드립니다')
     return <Navigate to="/login" replace />
   }
 
@@ -92,6 +93,13 @@ function AppRoutes() {
         }
       />
 
+      {/* Public Home and Meetings Routes */}
+      <Route path="/" element={<MainLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
+      </Route>
+
       {/* Protected Routes */}
       <Route
         path="/"
@@ -101,7 +109,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<HomePage />} />
         <Route path="profile" element={<ProfilePage />} />
 
         {/* Voting Routes */}
@@ -109,10 +116,8 @@ function AppRoutes() {
         <Route path="vote/nominate" element={<NominatePage />} />
         <Route path="best-posts" element={<BestPostsPage />} />
 
-        {/* Meeting Routes */}
-        <Route path="meetings" element={<MeetingsPage />} />
+        {/* Meeting Create Route (requires login) */}
         <Route path="meetings/create" element={<CreateMeetingPage />} />
-        <Route path="meetings/:id" element={<MeetingDetailPage />} />
 
         {/* Question Routes */}
         <Route path="questions" element={<QuestionsListPage />} />

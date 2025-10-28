@@ -14,6 +14,9 @@ function HomePage() {
   const [meetings, setMeetings] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Check if user is logged in
+  const isLoggedIn = !!user
+
   // Check if user can create meetings
   const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host'
 
@@ -59,47 +62,78 @@ function HomePage() {
     return <Loading />
   }
 
+  // Handle click on protected links
+  const handleProtectedLinkClick = (e, path) => {
+    if (!isLoggedIn) {
+      e.preventDefault()
+      alert('로그인 후 이용 부탁드립니다')
+      window.location.href = '/login'
+    }
+  }
+
   return (
     <div>
       <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-6">ING:K 커뮤니티</h1>
 
-      {/* 오늘의 질문 배너 */}
-      <TodayQuestionBanner />
+      {/* 로그인 안내 배너 - 로그인하지 않은 사용자에게만 표시 */}
+      {!isLoggedIn && (
+        <Card className="mb-6 bg-blue-50 border-2 border-blue-200">
+          <div className="text-center py-4">
+            <h2 className="text-lg font-bold text-blue-900 mb-2">
+              🎉 통찰방 커뮤니티에 오신 것을 환영합니다!
+            </h2>
+            <p className="text-blue-700 mb-4">
+              오프라인 모임은 누구나 볼 수 있지만, 참가 및 다른 기능은 로그인이 필요합니다.
+            </p>
+            <Link to="/login">
+              <Button className="mr-2">로그인</Button>
+            </Link>
+            <Link to="/signup">
+              <Button variant="outline">회원가입</Button>
+            </Link>
+          </div>
+        </Card>
+      )}
+
+      {/* 오늘의 질문 배너 - 로그인한 사용자에게만 표시 */}
+      {isLoggedIn && <TodayQuestionBanner />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Current Voting Period */}
-        <Card>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            현재 진행 중인 투표
-          </h2>
-          {votingPeriod ? (
-            <div>
-              <div className="mb-4">
-                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-2">
-                  투표 진행중
-                </span>
-                <p className="text-sm text-gray-600">
-                  시작: {formatDate(votingPeriod.start_date)}
-                </p>
-                <p className="text-sm text-gray-600">
-                  종료: {formatDate(votingPeriod.end_date)}
-                </p>
-                <p className="text-lg font-semibold text-blue-600 mt-2">
-                  {getDday(votingPeriod.end_date)}
+        {/* Current Voting Period - 로그인한 사용자에게만 표시 */}
+        {isLoggedIn && (
+          <Card>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              현재 진행 중인 투표
+            </h2>
+            {votingPeriod ? (
+              <div>
+                <div className="mb-4">
+                  <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-2">
+                    투표 진행중
+                  </span>
+                  <p className="text-sm text-gray-600">
+                    시작: {formatDate(votingPeriod.start_date)}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    종료: {formatDate(votingPeriod.end_date)}
+                  </p>
+                  <p className="text-lg font-semibold text-blue-600 mt-2">
+                    {getDday(votingPeriod.end_date)}
+                  </p>
+                </div>
+                <Link to="/vote">
+                  <Button fullWidth>투표하러 가기</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500 mb-4">
+                  현재 진행 중인 투표가 없습니다
                 </p>
               </div>
-              <Link to="/vote">
-                <Button fullWidth>투표하러 가기</Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">
-                현재 진행 중인 투표가 없습니다
-              </p>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+        )}
 
         {/* Quick Stats */}
         <Card>
@@ -198,38 +232,40 @@ function HomePage() {
         )}
       </div>
 
-      {/* Quick Links */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card hoverable>
-          <Link to="/vote/nominate" className="block text-center">
-            <div className="text-4xl mb-2">📝</div>
-            <h3 className="font-semibold text-gray-900 mb-1">글 추천하기</h3>
-            <p className="text-sm text-gray-600">
-              베스트 글을 추천해보세요
-            </p>
-          </Link>
-        </Card>
-        {canCreateMeeting && (
+      {/* Quick Links - 로그인한 사용자에게만 표시 */}
+      {isLoggedIn && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card hoverable>
-            <Link to="/meetings/create" className="block text-center">
-              <div className="text-4xl mb-2">🤝</div>
-              <h3 className="font-semibold text-gray-900 mb-1">모임 만들기</h3>
+            <Link to="/vote/nominate" className="block text-center">
+              <div className="text-4xl mb-2">📝</div>
+              <h3 className="font-semibold text-gray-900 mb-1">글 추천하기</h3>
               <p className="text-sm text-gray-600">
-                새로운 오프라인 모임을 만들어보세요
+                베스트 글을 추천해보세요
               </p>
             </Link>
           </Card>
-        )}
-        <Card hoverable>
-          <Link to="/profile" className="block text-center">
-            <div className="text-4xl mb-2">👤</div>
-            <h3 className="font-semibold text-gray-900 mb-1">내 프로필</h3>
-            <p className="text-sm text-gray-600">
-              내 활동 내역을 확인하세요
-            </p>
-          </Link>
-        </Card>
-      </div>
+          {canCreateMeeting && (
+            <Card hoverable>
+              <Link to="/meetings/create" className="block text-center">
+                <div className="text-4xl mb-2">🤝</div>
+                <h3 className="font-semibold text-gray-900 mb-1">모임 만들기</h3>
+                <p className="text-sm text-gray-600">
+                  새로운 오프라인 모임을 만들어보세요
+                </p>
+              </Link>
+            </Card>
+          )}
+          <Card hoverable>
+            <Link to="/profile" className="block text-center">
+              <div className="text-4xl mb-2">👤</div>
+              <h3 className="font-semibold text-gray-900 mb-1">내 프로필</h3>
+              <p className="text-sm text-gray-600">
+                내 활동 내역을 확인하세요
+              </p>
+            </Link>
+          </Card>
+        </div>
+      )}
 
       {/* Footer Quote */}
       <div className="mt-12 pt-8 border-t border-gray-200">

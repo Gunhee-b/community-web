@@ -26,6 +26,9 @@ function MeetingDetailPage() {
   const [chats, setChats] = useState([])
   const [newMessage, setNewMessage] = useState('')
 
+  // Check if user is logged in
+  const isLoggedIn = !!user
+
   // Use ref to avoid stale closure in polling interval
   const chatsRef = useRef(chats)
 
@@ -42,6 +45,7 @@ function MeetingDetailPage() {
     description: '',
     host_style: '',
     host_sns_link: '',
+    kakao_openchat_link: '',
     start_datetime: '',
     end_datetime: '',
     max_participants: '',
@@ -58,6 +62,12 @@ function MeetingDetailPage() {
 
   useEffect(() => {
     fetchMeetingData()
+
+    // Only set up realtime and polling if user is logged in
+    if (!isLoggedIn) {
+      setLoading(false)
+      return
+    }
 
     // Try Realtime subscription
     const cleanup = subscribeToChats()
@@ -91,7 +101,7 @@ function MeetingDetailPage() {
       clearInterval(pollingInterval)
       window.removeEventListener('storage', handleStorageEvent)
     }
-  }, [id, isParticipant, user.id])
+  }, [id, isParticipant, isLoggedIn, user?.id])
 
 
   const fetchMeetingData = async () => {
@@ -120,20 +130,26 @@ function MeetingDetailPage() {
         console.error('Error fetching participants:', participantsError)
       }
 
-      console.log('Current user ID:', user.id)
-      console.log('Participants:', participantsData)
+      // Only check participant status if user is logged in
+      if (isLoggedIn) {
+        console.log('Current user ID:', user.id)
+        console.log('Participants:', participantsData)
 
-      const isUserParticipant = participantsData?.some((p) => p.user_id === user.id) || false
+        const isUserParticipant = participantsData?.some((p) => p.user_id === user.id) || false
 
-      console.log('Is participant:', isUserParticipant)
+        console.log('Is participant:', isUserParticipant)
 
-      setParticipants(participantsData || [])
-      setIsParticipant(isUserParticipant)
+        setParticipants(participantsData || [])
+        setIsParticipant(isUserParticipant)
 
-      // Fetch chats if participant
-      if (isUserParticipant) {
-        console.log('Fetching chats...')
-        await fetchChats()
+        // Fetch chats if participant
+        if (isUserParticipant) {
+          console.log('Fetching chats...')
+          await fetchChats()
+        }
+      } else {
+        setParticipants(participantsData || [])
+        setIsParticipant(false)
       }
     } catch (error) {
       console.error('Error fetching meeting:', error)
@@ -250,6 +266,13 @@ function MeetingDetailPage() {
   }
 
   const handleJoin = async () => {
+    // Check if user is logged in
+    if (!isLoggedIn) {
+      alert('로그인 후 이용 부탁드립니다')
+      navigate('/login')
+      return
+    }
+
     // Check if meeting is confirmed
     if (meeting.status === 'confirmed') {
       alert('이미 확정된 모임입니다. 더 이상 참가할 수 없습니다.')
@@ -267,7 +290,16 @@ function MeetingDetailPage() {
         },
       ])
 
-      fetchMeetingData()
+      // Show success message
+      alert('모임 참가가 완료되었습니다! 카카오톡 오픈채팅방으로 이동합니다.')
+
+      // Fetch updated meeting data
+      await fetchMeetingData()
+
+      // Redirect to Kakao Open Chat if link exists
+      if (meeting.kakao_openchat_link) {
+        window.open(meeting.kakao_openchat_link, '_blank')
+      }
     } catch (error) {
       console.error('Error joining meeting:', error)
       alert('참가 신청 중 오류가 발생했습니다')
@@ -445,6 +477,7 @@ function MeetingDetailPage() {
       description: meeting.description || '',
       host_style: meeting.host_style || '',
       host_sns_link: meeting.host_sns_link || '',
+      kakao_openchat_link: meeting.kakao_openchat_link || '',
       start_datetime: toLocalDateTimeString(meeting.start_datetime),
       end_datetime: toLocalDateTimeString(meeting.end_datetime),
       max_participants: meeting.max_participants.toString(),
@@ -575,6 +608,7 @@ function MeetingDetailPage() {
           description: editForm.description || null,
           host_style: editForm.host_style || null,
           host_sns_link: editForm.host_sns_link || null,
+          kakao_openchat_link: editForm.kakao_openchat_link || null,
           start_datetime: startDatetimeISO,
           end_datetime: endDatetimeISO,
           max_participants: parseInt(editForm.max_participants),
@@ -806,6 +840,23 @@ function MeetingDetailPage() {
               </div>
             )}
 
+            {meeting.kakao_openchat_link && (
+              <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">💬 카카오톡 오픈채팅</h3>
+                <a
+                  href={meeting.kakao_openchat_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline break-all font-medium"
+                >
+                  오픈채팅방 입장하기 →
+                </a>
+                <p className="text-xs text-gray-500 mt-1">
+                  모임 참가 후 오픈채팅방에 입장해주세요
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2 text-gray-600 mb-4">
               <p>
                 📅 {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
@@ -818,7 +869,20 @@ function MeetingDetailPage() {
               </p>
             </div>
 
-            {!isParticipant && meeting.status === 'recruiting' && (
+            {/* 로그인하지 않은 사용자에게 로그인 버튼 표시 */}
+            {!isLoggedIn && meeting.status === 'recruiting' && (
+              <div className="mt-6">
+                <p className="text-center text-gray-600 mb-3">
+                  모임에 참가하려면 로그인이 필요합니다
+                </p>
+                <Button onClick={() => navigate('/login')} fullWidth>
+                  로그인하고 참가하기
+                </Button>
+              </div>
+            )}
+
+            {/* 로그인했지만 참가하지 않은 사용자에게 참가 버튼 표시 */}
+            {isLoggedIn && !isParticipant && meeting.status === 'recruiting' && (
               <Button onClick={handleJoin} fullWidth className="mt-6">
                 모임 참가하기
               </Button>
@@ -862,8 +926,8 @@ function MeetingDetailPage() {
               </div>
             )}
 
-            {/* Admin/Meeting host edit and delete buttons */}
-            {(user?.role === 'admin' || meeting.host_id === user?.id) && (
+            {/* Admin/Meeting host edit and delete buttons (only for logged in users) */}
+            {isLoggedIn && (user.role === 'admin' || meeting.host_id === user.id) && (
               <div className="mt-4 pt-4 border-t space-y-2">
                 <Button
                   onClick={handleEditClick}
@@ -883,8 +947,8 @@ function MeetingDetailPage() {
             )}
           </Card>
 
-          {/* Chat (only for participants) */}
-          {isParticipant && (
+          {/* Chat (only for logged in participants) */}
+          {isLoggedIn && isParticipant && (
             <Card>
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 모임 채팅방
@@ -1045,6 +1109,22 @@ function MeetingDetailPage() {
               placeholder="https://instagram.com/your-profile (선택사항)"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              카카오톡 오픈채팅 링크
+            </label>
+            <input
+              type="url"
+              value={editForm.kakao_openchat_link}
+              onChange={(e) => setEditForm({ ...editForm, kakao_openchat_link: e.target.value })}
+              placeholder="https://open.kakao.com/o/... (선택사항)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              모임 참가자들이 입장할 카카오톡 오픈채팅방 링크
+            </p>
           </div>
 
           <div>

@@ -11,9 +11,20 @@ function MainLayout() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  // Check if user is logged in
+  const isLoggedIn = !!user
+
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const handleProtectedLinkClick = (e, path) => {
+    if (!isLoggedIn) {
+      e.preventDefault()
+      alert('로그인 후 이용 부탁드립니다')
+      navigate('/login')
+    }
   }
 
   const isActive = (path) => {
@@ -58,36 +69,42 @@ function MainLayout() {
               >
                 홈
               </Link>
-              <Link
-                to="/questions"
-                className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
-                  isActive('/questions')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                질문모음
-              </Link>
-              <Link
-                to="/vote"
-                className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
-                  isActive('/vote')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                투표
-              </Link>
-              <Link
-                to="/best-posts"
-                className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
-                  isActive('/best-posts')
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                베스트
-              </Link>
+              {isLoggedIn && (
+                <Link
+                  to="/questions"
+                  className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
+                    isActive('/questions')
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  질문모음
+                </Link>
+              )}
+              {isLoggedIn && (
+                <Link
+                  to="/vote"
+                  className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
+                    isActive('/vote')
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  투표
+                </Link>
+              )}
+              {isLoggedIn && (
+                <Link
+                  to="/best-posts"
+                  className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
+                    isActive('/best-posts')
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  베스트
+                </Link>
+              )}
               <Link
                 to="/meetings"
                 className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
@@ -114,20 +131,39 @@ function MainLayout() {
 
             {/* Right Side Actions */}
             <div className="flex items-center space-x-2 md:space-x-4">
-              <NotificationBell />
-              <span className="hidden sm:inline text-xs md:text-sm text-gray-700">{user?.username}님</span>
-              <Link
-                to="/profile"
-                className="hidden md:inline text-sm text-gray-700 hover:text-blue-600"
-              >
-                프로필
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="hidden md:inline text-sm text-gray-700 hover:text-red-600"
-              >
-                로그아웃
-              </button>
+              {isLoggedIn ? (
+                <>
+                  <NotificationBell />
+                  <span className="hidden sm:inline text-xs md:text-sm text-gray-700">{user.username}님</span>
+                  <Link
+                    to="/profile"
+                    className="hidden md:inline text-sm text-gray-700 hover:text-blue-600"
+                  >
+                    프로필
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="hidden md:inline text-sm text-gray-700 hover:text-red-600"
+                  >
+                    로그아웃
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="text-xs md:text-sm px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    로그인
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className="hidden md:inline text-xs md:text-sm px-3 py-1.5 md:px-4 md:py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
+                  >
+                    회원가입
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -155,13 +191,32 @@ function MainLayout() {
                 </button>
               </div>
 
-              {/* User Info */}
-              <div className="p-4 bg-blue-50 border-b">
-                <p className="text-sm font-medium text-gray-900">{user?.username}님</p>
-                <p className="text-xs text-gray-600">
-                  {user?.role === 'admin' ? '관리자' : user?.role === 'meeting_host' ? '모임장' : '일반 회원'}
-                </p>
-              </div>
+              {/* User Info or Login Button */}
+              {isLoggedIn ? (
+                <div className="p-4 bg-blue-50 border-b">
+                  <p className="text-sm font-medium text-gray-900">{user.username}님</p>
+                  <p className="text-xs text-gray-600">
+                    {user.role === 'admin' ? '관리자' : user.role === 'meeting_host' ? '모임장' : '일반 회원'}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 border-b space-y-2">
+                  <Link
+                    to="/login"
+                    onClick={closeMobileMenu}
+                    className="block w-full py-2 px-4 bg-blue-600 text-white text-center rounded-lg font-medium"
+                  >
+                    로그인
+                  </Link>
+                  <Link
+                    to="/signup"
+                    onClick={closeMobileMenu}
+                    className="block w-full py-2 px-4 border border-blue-600 text-blue-600 text-center rounded-lg font-medium"
+                  >
+                    회원가입
+                  </Link>
+                </div>
+              )}
 
               {/* Navigation Links */}
               <nav className="flex-1 overflow-y-auto py-4">
@@ -177,42 +232,48 @@ function MainLayout() {
                   <span className="mr-3">🏠</span>
                   홈
                 </Link>
-                <Link
-                  to="/questions"
-                  onClick={closeMobileMenu}
-                  className={`flex items-center px-4 py-3 text-base font-medium ${
-                    isActive('/questions')
-                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="mr-3">💡</span>
-                  오늘의 질문
-                </Link>
-                <Link
-                  to="/vote"
-                  onClick={closeMobileMenu}
-                  className={`flex items-center px-4 py-3 text-base font-medium ${
-                    isActive('/vote')
-                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="mr-3">📝</span>
-                  베스트 글 투표
-                </Link>
-                <Link
-                  to="/best-posts"
-                  onClick={closeMobileMenu}
-                  className={`flex items-center px-4 py-3 text-base font-medium ${
-                    isActive('/best-posts')
-                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="mr-3">🏆</span>
-                  베스트 글
-                </Link>
+                {isLoggedIn && (
+                  <Link
+                    to="/questions"
+                    onClick={closeMobileMenu}
+                    className={`flex items-center px-4 py-3 text-base font-medium ${
+                      isActive('/questions')
+                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="mr-3">💡</span>
+                    오늘의 질문
+                  </Link>
+                )}
+                {isLoggedIn && (
+                  <Link
+                    to="/vote"
+                    onClick={closeMobileMenu}
+                    className={`flex items-center px-4 py-3 text-base font-medium ${
+                      isActive('/vote')
+                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="mr-3">📝</span>
+                    베스트 글 투표
+                  </Link>
+                )}
+                {isLoggedIn && (
+                  <Link
+                    to="/best-posts"
+                    onClick={closeMobileMenu}
+                    className={`flex items-center px-4 py-3 text-base font-medium ${
+                      isActive('/best-posts')
+                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="mr-3">🏆</span>
+                    베스트 글
+                  </Link>
+                )}
                 <Link
                   to="/meetings"
                   onClick={closeMobileMenu}
@@ -225,18 +286,20 @@ function MainLayout() {
                   <span className="mr-3">🤝</span>
                   오프라인 모임
                 </Link>
-                <Link
-                  to="/profile"
-                  onClick={closeMobileMenu}
-                  className={`flex items-center px-4 py-3 text-base font-medium ${
-                    isActive('/profile')
-                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="mr-3">👤</span>
-                  프로필
-                </Link>
+                {isLoggedIn && (
+                  <Link
+                    to="/profile"
+                    onClick={closeMobileMenu}
+                    className={`flex items-center px-4 py-3 text-base font-medium ${
+                      isActive('/profile')
+                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="mr-3">👤</span>
+                    프로필
+                  </Link>
+                )}
                 {user?.role === 'admin' && (
                   <Link
                     to="/admin"
@@ -253,18 +316,20 @@ function MainLayout() {
                 )}
               </nav>
 
-              {/* Logout Button */}
-              <div className="p-4 border-t">
-                <button
-                  onClick={() => {
-                    closeMobileMenu()
-                    handleLogout()
-                  }}
-                  className="w-full py-3 px-4 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 active:bg-red-200"
-                >
-                  로그아웃
-                </button>
-              </div>
+              {/* Logout Button - only for logged in users */}
+              {isLoggedIn && (
+                <div className="p-4 border-t">
+                  <button
+                    onClick={() => {
+                      closeMobileMenu()
+                      handleLogout()
+                    }}
+                    className="w-full py-3 px-4 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 active:bg-red-200"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -291,28 +356,32 @@ function MainLayout() {
             </svg>
             <span className="text-xs">홈</span>
           </Link>
-          <Link
-            to="/questions"
-            className={`flex flex-col items-center justify-center flex-1 h-full ${
-              isActive('/questions') ? 'text-blue-600' : 'text-gray-600'
-            }`}
-          >
-            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-xs">질문</span>
-          </Link>
-          <Link
-            to="/vote"
-            className={`flex flex-col items-center justify-center flex-1 h-full ${
-              isActive('/vote') ? 'text-blue-600' : 'text-gray-600'
-            }`}
-          >
-            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <span className="text-xs">투표</span>
-          </Link>
+          {isLoggedIn && (
+            <Link
+              to="/questions"
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                isActive('/questions') ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs">질문</span>
+            </Link>
+          )}
+          {isLoggedIn && (
+            <Link
+              to="/vote"
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                isActive('/vote') ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
+              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="text-xs">투표</span>
+            </Link>
+          )}
           <Link
             to="/meetings"
             className={`flex flex-col items-center justify-center flex-1 h-full ${

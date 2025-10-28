@@ -13,8 +13,11 @@ function MeetingsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('upcoming') // upcoming, past
 
-  // Check if user can create meetings
-  const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host'
+  // Check if user is logged in
+  const isLoggedIn = !!user
+
+  // Check if user can create meetings (only when logged in)
+  const canCreateMeeting = isLoggedIn && (user.role === 'admin' || user.role === 'meeting_host')
 
   useEffect(() => {
     fetchMeetings()
@@ -58,9 +61,15 @@ function MeetingsPage() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">오프라인 모임</h1>
-        {canCreateMeeting && (
-          <Link to="/meetings/create">
-            <Button>모임 만들기</Button>
+        {isLoggedIn ? (
+          canCreateMeeting && (
+            <Link to="/meetings/create">
+              <Button>모임 만들기</Button>
+            </Link>
+          )
+        ) : (
+          <Link to="/login">
+            <Button variant="outline">로그인</Button>
           </Link>
         )}
       </div>
@@ -164,7 +173,7 @@ function MeetingsPage() {
                 ? '모집 중인 모임이 없습니다'
                 : '지난 모임이 없습니다'}
             </p>
-            {filter === 'upcoming' && (
+            {filter === 'upcoming' && canCreateMeeting && (
               <Link to="/meetings/create">
                 <Button>첫 모임을 만들어보세요</Button>
               </Link>

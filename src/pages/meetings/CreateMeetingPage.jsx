@@ -21,6 +21,7 @@ function CreateMeetingPage() {
     endTime: '',
     maxParticipants: 4,
     purpose: 'coffee',
+    kakaoOpenchatLink: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -126,11 +127,18 @@ function CreateMeetingPage() {
       !formData.location ||
       !formData.hostIntroduction ||
       !formData.description ||
+      !formData.kakaoOpenchatLink ||
       !formData.meetingDate ||
       !formData.startTime ||
       !formData.endTime
     ) {
       setError('모든 필수 필드를 입력해주세요')
+      return
+    }
+
+    // Validate Kakao Open Chat link format
+    if (!formData.kakaoOpenchatLink.includes('open.kakao.com')) {
+      setError('올바른 카카오톡 오픈채팅 링크를 입력해주세요')
       return
     }
 
@@ -250,6 +258,7 @@ function CreateMeetingPage() {
             location: formData.location,
             host_introduction: formData.hostIntroduction,
             description: formData.description,
+            kakao_openchat_link: formData.kakaoOpenchatLink,
             start_datetime: startDatetime.toISOString(),
             end_datetime: endDatetime.toISOString(),
             max_participants: parseInt(formData.maxParticipants),
@@ -325,6 +334,24 @@ function CreateMeetingPage() {
               rows="3"
               required
             />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              카카오톡 오픈채팅 링크 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="url"
+              name="kakaoOpenchatLink"
+              value={formData.kakaoOpenchatLink}
+              onChange={handleChange}
+              placeholder="https://open.kakao.com/o/..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              모임 참가자들이 입장할 카카오톡 오픈채팅방 링크를 입력해주세요
+            </p>
           </div>
 
           <div className="mb-4">
