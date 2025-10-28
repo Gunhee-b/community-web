@@ -695,15 +695,13 @@ function MeetingDetailPage() {
     }
   }
 
-  const handleAttendanceToggle = async (participantId, currentStatus) => {
+  const handleAttendanceMark = async (participantId, attendanceStatus) => {
     try {
-      const newStatus = currentStatus === true ? false : true
-
       const { data, error } = await supabase.rpc('mark_attendance', {
         p_meeting_id: id,
         p_participant_id: participantId,
         p_host_id: user.id,
-        p_attended: newStatus
+        p_attended: attendanceStatus
       })
 
       if (error) {
@@ -717,7 +715,8 @@ function MeetingDetailPage() {
       // Refresh participant list
       await fetchMeetingData()
 
-      alert(newStatus ? '참석으로 표시되었습니다' : '참석이 취소되었습니다')
+      const statusText = attendanceStatus === true ? '참석' : '불참'
+      alert(`${statusText}으로 표시되었습니다`)
     } catch (error) {
       console.error('Error marking attendance:', error)
       alert(error.message)
@@ -1072,9 +1071,10 @@ function MeetingDetailPage() {
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800 font-medium mb-1">참석 체크 안내</p>
                 <ul className="text-xs text-blue-700 space-y-1">
-                  <li>• 실제로 참석한 참가자를 체크해주세요</li>
-                  <li>• 체크된 참가자의 '모임 참여' 횟수가 증가합니다</li>
-                  <li>• 잘못 체크한 경우 다시 클릭하여 취소할 수 있습니다</li>
+                  <li>• 실제로 참석/불참한 참가자를 체크해주세요</li>
+                  <li>• 참석 체크 시 '모임 참여' 횟수가 증가합니다</li>
+                  <li>• 불참 체크 시 '모임 참여' 횟수가 감소합니다</li>
+                  <li>• 변경이 필요한 경우 다시 버튼을 클릭하여 수정할 수 있습니다</li>
                 </ul>
               </div>
             )}
@@ -1098,32 +1098,42 @@ function MeetingDetailPage() {
 
                   <div className="flex items-center gap-2">
                     {/* Show attendance status */}
-                    {hasMeetingEnded && participant.attended !== null && (
+                    {hasMeetingEnded && participant.attended !== null && !showAttendanceCheck && (
                       <span
-                        className={`text-xs px-2 py-1 rounded ${
+                        className={`text-xs px-2 py-1 rounded font-medium ${
                           participant.attended
                             ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-200 text-gray-600'
+                            : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        {participant.attended ? '✓ 참석' : '미참석'}
+                        {participant.attended ? '✓ 참석' : '✗ 불참'}
                       </span>
                     )}
 
-                    {/* Attendance check button (only for host, after meeting ends, not for host themselves) */}
+                    {/* Attendance check buttons (only for host, after meeting ends, not for host themselves) */}
                     {isHost && hasMeetingEnded && showAttendanceCheck && participant.user_id !== meeting.host_id && (
-                      <button
-                        onClick={() => handleAttendanceToggle(participant.user_id, participant.attended)}
-                        className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors ${
-                          participant.attended === true
-                            ? 'bg-green-600 text-white hover:bg-green-700'
-                            : participant.attended === false
-                            ? 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {participant.attended === true ? '✓ 참석' : participant.attended === false ? '미참석' : '체크'}
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleAttendanceMark(participant.user_id, true)}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                            participant.attended === true
+                              ? 'bg-green-600 text-white shadow-md'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300'
+                          }`}
+                        >
+                          {participant.attended === true ? '✓ 참석됨' : '참석'}
+                        </button>
+                        <button
+                          onClick={() => handleAttendanceMark(participant.user_id, false)}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                            participant.attended === false
+                              ? 'bg-red-600 text-white shadow-md'
+                              : 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-300'
+                          }`}
+                        >
+                          {participant.attended === false ? '✗ 불참됨' : '불참'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

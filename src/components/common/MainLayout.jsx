@@ -69,42 +69,39 @@ function MainLayout() {
               >
                 홈
               </Link>
-              {isLoggedIn && (
-                <Link
-                  to="/questions"
-                  className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
-                    isActive('/questions')
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  질문모음
-                </Link>
-              )}
-              {isLoggedIn && (
-                <Link
-                  to="/vote"
-                  className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
-                    isActive('/vote')
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  투표
-                </Link>
-              )}
-              {isLoggedIn && (
-                <Link
-                  to="/best-posts"
-                  className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
-                    isActive('/best-posts')
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  베스트
-                </Link>
-              )}
+              <Link
+                to="/questions"
+                onClick={(e) => handleProtectedLinkClick(e, '/questions')}
+                className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
+                  isActive('/questions')
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                질문모음
+              </Link>
+              <Link
+                to="/vote"
+                onClick={(e) => handleProtectedLinkClick(e, '/vote')}
+                className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
+                  isActive('/vote')
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                투표
+              </Link>
+              <Link
+                to="/best-posts"
+                onClick={(e) => handleProtectedLinkClick(e, '/best-posts')}
+                className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
+                  isActive('/best-posts')
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                베스트
+              </Link>
               <Link
                 to="/meetings"
                 className={`px-2 lg:px-3 py-2 rounded-md text-xs lg:text-sm font-medium ${
@@ -232,48 +229,51 @@ function MainLayout() {
                   <span className="mr-3">🏠</span>
                   홈
                 </Link>
-                {isLoggedIn && (
-                  <Link
-                    to="/questions"
-                    onClick={closeMobileMenu}
-                    className={`flex items-center px-4 py-3 text-base font-medium ${
-                      isActive('/questions')
-                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className="mr-3">💡</span>
-                    오늘의 질문
-                  </Link>
-                )}
-                {isLoggedIn && (
-                  <Link
-                    to="/vote"
-                    onClick={closeMobileMenu}
-                    className={`flex items-center px-4 py-3 text-base font-medium ${
-                      isActive('/vote')
-                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className="mr-3">📝</span>
-                    베스트 글 투표
-                  </Link>
-                )}
-                {isLoggedIn && (
-                  <Link
-                    to="/best-posts"
-                    onClick={closeMobileMenu}
-                    className={`flex items-center px-4 py-3 text-base font-medium ${
-                      isActive('/best-posts')
-                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className="mr-3">🏆</span>
-                    베스트 글
-                  </Link>
-                )}
+                <Link
+                  to="/questions"
+                  onClick={(e) => {
+                    handleProtectedLinkClick(e, '/questions')
+                    if (isLoggedIn) closeMobileMenu()
+                  }}
+                  className={`flex items-center px-4 py-3 text-base font-medium ${
+                    isActive('/questions')
+                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="mr-3">💡</span>
+                  오늘의 질문
+                </Link>
+                <Link
+                  to="/vote"
+                  onClick={(e) => {
+                    handleProtectedLinkClick(e, '/vote')
+                    if (isLoggedIn) closeMobileMenu()
+                  }}
+                  className={`flex items-center px-4 py-3 text-base font-medium ${
+                    isActive('/vote')
+                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="mr-3">📝</span>
+                  베스트 글 투표
+                </Link>
+                <Link
+                  to="/best-posts"
+                  onClick={(e) => {
+                    handleProtectedLinkClick(e, '/best-posts')
+                    if (isLoggedIn) closeMobileMenu()
+                  }}
+                  className={`flex items-center px-4 py-3 text-base font-medium ${
+                    isActive('/best-posts')
+                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="mr-3">🏆</span>
+                  베스트 글
+                </Link>
                 <Link
                   to="/meetings"
                   onClick={closeMobileMenu}
@@ -286,20 +286,21 @@ function MainLayout() {
                   <span className="mr-3">🤝</span>
                   오프라인 모임
                 </Link>
-                {isLoggedIn && (
-                  <Link
-                    to="/profile"
-                    onClick={closeMobileMenu}
-                    className={`flex items-center px-4 py-3 text-base font-medium ${
-                      isActive('/profile')
-                        ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className="mr-3">👤</span>
-                    프로필
-                  </Link>
-                )}
+                <Link
+                  to="/profile"
+                  onClick={(e) => {
+                    handleProtectedLinkClick(e, '/profile')
+                    if (isLoggedIn) closeMobileMenu()
+                  }}
+                  className={`flex items-center px-4 py-3 text-base font-medium ${
+                    isActive('/profile')
+                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="mr-3">👤</span>
+                  프로필
+                </Link>
                 {user?.role === 'admin' && (
                   <Link
                     to="/admin"
@@ -356,32 +357,30 @@ function MainLayout() {
             </svg>
             <span className="text-xs">홈</span>
           </Link>
-          {isLoggedIn && (
-            <Link
-              to="/questions"
-              className={`flex flex-col items-center justify-center flex-1 h-full ${
-                isActive('/questions') ? 'text-blue-600' : 'text-gray-600'
-              }`}
-            >
-              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-xs">질문</span>
-            </Link>
-          )}
-          {isLoggedIn && (
-            <Link
-              to="/vote"
-              className={`flex flex-col items-center justify-center flex-1 h-full ${
-                isActive('/vote') ? 'text-blue-600' : 'text-gray-600'
-              }`}
-            >
-              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <span className="text-xs">투표</span>
-            </Link>
-          )}
+          <Link
+            to="/questions"
+            onClick={(e) => handleProtectedLinkClick(e, '/questions')}
+            className={`flex flex-col items-center justify-center flex-1 h-full ${
+              isActive('/questions') ? 'text-blue-600' : 'text-gray-600'
+            }`}
+          >
+            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-xs">질문</span>
+          </Link>
+          <Link
+            to="/vote"
+            onClick={(e) => handleProtectedLinkClick(e, '/vote')}
+            className={`flex flex-col items-center justify-center flex-1 h-full ${
+              isActive('/vote') ? 'text-blue-600' : 'text-gray-600'
+            }`}
+          >
+            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span className="text-xs">투표</span>
+          </Link>
           <Link
             to="/meetings"
             className={`flex flex-col items-center justify-center flex-1 h-full ${

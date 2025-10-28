@@ -48,7 +48,7 @@ function HomePage() {
         .eq('status', 'recruiting')
         .gte('start_datetime', new Date().toISOString())
         .order('start_datetime', { ascending: true })
-        .limit(3)
+        .limit(6)
 
       setMeetings(meetingsData || [])
     } catch (error) {
