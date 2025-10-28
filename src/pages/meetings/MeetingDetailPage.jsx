@@ -1079,14 +1079,15 @@ function MeetingDetailPage() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {participants.map((participant) => (
                 <div
                   key={participant.id}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 rounded-lg gap-2"
                 >
+                  {/* User info */}
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-700">
+                    <span className="text-gray-700 font-medium">
                       {participant.user?.username}
                     </span>
                     {participant.user_id === meeting.host_id && (
@@ -1096,11 +1097,12 @@ function MeetingDetailPage() {
                     )}
                   </div>
 
+                  {/* Attendance status/buttons */}
                   <div className="flex items-center gap-2">
                     {/* Show attendance status */}
                     {hasMeetingEnded && participant.attended !== null && !showAttendanceCheck && (
                       <span
-                        className={`text-xs px-2 py-1 rounded font-medium ${
+                        className={`text-xs sm:text-sm px-3 py-1.5 rounded-lg font-medium ${
                           participant.attended
                             ? 'bg-green-100 text-green-700'
                             : 'bg-red-100 text-red-700'
@@ -1112,23 +1114,23 @@ function MeetingDetailPage() {
 
                     {/* Attendance check buttons (only for host, after meeting ends, not for host themselves) */}
                     {isHost && hasMeetingEnded && showAttendanceCheck && participant.user_id !== meeting.host_id && (
-                      <div className="flex gap-1">
+                      <div className="flex gap-2 w-full sm:w-auto">
                         <button
                           onClick={() => handleAttendanceMark(participant.user_id, true)}
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                          className={`flex-1 sm:flex-none text-xs sm:text-sm px-4 py-2 rounded-lg font-medium transition-colors ${
                             participant.attended === true
                               ? 'bg-green-600 text-white shadow-md'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200 active:bg-green-300 border border-green-300'
                           }`}
                         >
                           {participant.attended === true ? '✓ 참석됨' : '참석'}
                         </button>
                         <button
                           onClick={() => handleAttendanceMark(participant.user_id, false)}
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                          className={`flex-1 sm:flex-none text-xs sm:text-sm px-4 py-2 rounded-lg font-medium transition-colors ${
                             participant.attended === false
                               ? 'bg-red-600 text-white shadow-md'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-300'
+                              : 'bg-red-100 text-red-700 hover:bg-red-200 active:bg-red-300 border border-red-300'
                           }`}
                         >
                           {participant.attended === false ? '✗ 불참됨' : '불참'}
