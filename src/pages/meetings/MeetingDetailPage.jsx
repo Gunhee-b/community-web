@@ -25,9 +25,16 @@ function MeetingDetailPage() {
   const [loading, setLoading] = useState(true)
   const [chats, setChats] = useState([])
   const [newMessage, setNewMessage] = useState('')
+  const [showAttendanceCheck, setShowAttendanceCheck] = useState(false)
 
   // Check if user is logged in
   const isLoggedIn = !!user
+
+  // Check if meeting has ended
+  const hasMeetingEnded = meeting ? new Date(meeting.end_datetime) < new Date() : false
+
+  // Check if user is the host
+  const isHost = isLoggedIn && meeting && user.id === meeting.host_id
 
   // Use ref to avoid stale closure in polling interval
   const chatsRef = useRef(chats)
@@ -688,6 +695,35 @@ function MeetingDetailPage() {
     }
   }
 
+  const handleAttendanceToggle = async (participantId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === true ? false : true
+
+      const { data, error } = await supabase.rpc('mark_attendance', {
+        p_meeting_id: id,
+        p_participant_id: participantId,
+        p_host_id: user.id,
+        p_attended: newStatus
+      })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || '참석 체크 중 오류가 발생했습니다')
+      }
+
+      // Refresh participant list
+      await fetchMeetingData()
+
+      alert(newStatus ? '참석으로 표시되었습니다' : '참석이 취소되었습니다')
+    } catch (error) {
+      console.error('Error marking attendance:', error)
+      alert(error.message)
+    }
+  }
+
   const handleSendMessage = async (e) => {
     e.preventDefault()
     if (!newMessage.trim()) return
@@ -1014,21 +1050,82 @@ function MeetingDetailPage() {
         {/* Participants */}
         <div>
           <Card>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">참가자 목록</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">참가자 목록</h2>
+              {/* Attendance check toggle for host after meeting ends */}
+              {isHost && hasMeetingEnded && (
+                <button
+                  onClick={() => setShowAttendanceCheck(!showAttendanceCheck)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium ${
+                    showAttendanceCheck
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                >
+                  {showAttendanceCheck ? '✓ 참석 체크 중' : '📝 참석 체크'}
+                </button>
+              )}
+            </div>
+
+            {/* Show attendance info for host */}
+            {isHost && hasMeetingEnded && showAttendanceCheck && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 font-medium mb-1">참석 체크 안내</p>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• 실제로 참석한 참가자를 체크해주세요</li>
+                  <li>• 체크된 참가자의 '모임 참여' 횟수가 증가합니다</li>
+                  <li>• 잘못 체크한 경우 다시 클릭하여 취소할 수 있습니다</li>
+                </ul>
+              </div>
+            )}
+
             <div className="space-y-2">
               {participants.map((participant) => (
                 <div
                   key={participant.id}
                   className="flex items-center justify-between p-2 bg-gray-50 rounded"
                 >
-                  <span className="text-gray-700">
-                    {participant.user?.username}
-                  </span>
-                  {participant.user_id === meeting.host_id && (
-                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                      호스트
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-700">
+                      {participant.user?.username}
                     </span>
-                  )}
+                    {participant.user_id === meeting.host_id && (
+                      <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                        호스트
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Show attendance status */}
+                    {hasMeetingEnded && participant.attended !== null && (
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          participant.attended
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {participant.attended ? '✓ 참석' : '미참석'}
+                      </span>
+                    )}
+
+                    {/* Attendance check button (only for host, after meeting ends, not for host themselves) */}
+                    {isHost && hasMeetingEnded && showAttendanceCheck && participant.user_id !== meeting.host_id && (
+                      <button
+                        onClick={() => handleAttendanceToggle(participant.user_id, participant.attended)}
+                        className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors ${
+                          participant.attended === true
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : participant.attended === false
+                            ? 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {participant.attended === true ? '✓ 참석' : participant.attended === false ? '미참석' : '체크'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

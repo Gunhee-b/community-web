@@ -113,7 +113,9 @@ function ProfilePage() {
             <div className="text-sm text-gray-600">글 추천</div>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <div className="text-2xl md:text-3xl font-bold text-purple-600 mb-1">-</div>
+            <div className="text-2xl md:text-3xl font-bold text-purple-600 mb-1">
+              {user?.meeting_participation_count || 0}
+            </div>
             <div className="text-sm text-gray-600">모임 참여</div>
           </div>
           <div className="text-center p-4 bg-orange-50 rounded-lg">
