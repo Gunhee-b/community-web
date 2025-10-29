@@ -83,7 +83,7 @@ function HomePage() {
               🎉 통찰방 커뮤니티에 오신 것을 환영합니다!
             </h2>
             <p className="text-blue-700 mb-4">
-              오프라인 모임은 누구나 볼 수 있지만, 참가 및 다른 기능은 로그인이 필요합니다.
+              철학챗은 누구나 볼 수 있지만, 참가 및 다른 기능은 로그인이 필요합니다.
             </p>
             <Link to="/login">
               <Button className="mr-2">로그인</Button>
@@ -250,7 +250,7 @@ function HomePage() {
                 <div className="text-4xl mb-2">🤝</div>
                 <h3 className="font-semibold text-gray-900 mb-1">모임 만들기</h3>
                 <p className="text-sm text-gray-600">
-                  새로운 오프라인 모임을 만들어보세요
+                  새로운 철학챗을 만들어보세요
                 </p>
               </Link>
             </Card>

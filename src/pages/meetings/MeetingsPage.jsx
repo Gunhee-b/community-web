@@ -60,7 +60,7 @@ function MeetingsPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">오프라인 모임</h1>
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">철학챗</h1>
         {isLoggedIn ? (
           canCreateMeeting && (
             <Link to="/meetings/create">

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
@@ -13,18 +13,23 @@ import Loading from '../../components/common/Loading'
 import Modal from '../../components/common/Modal'
 import LocationMapPreview from '../../components/meetings/LocationMapPreview'
 import ImageAdjustModal from '../../components/meetings/ImageAdjustModal'
+import { useMeetingChat } from '../../hooks/useMeetingChat'
+import { useMeetingParticipants } from '../../hooks/useMeetingParticipants'
+import { useImageUpload } from '../../hooks/useImageUpload'
+import { useModal } from '../../hooks/useModal'
+import { useToast } from '../../hooks/useToast'
 
 function MeetingDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const addNotification = useNotificationStore((state) => state.addNotification)
+  const toast = useToast()
+
   const [meeting, setMeeting] = useState(null)
   const [participants, setParticipants] = useState([])
   const [isParticipant, setIsParticipant] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [chats, setChats] = useState([])
-  const [newMessage, setNewMessage] = useState('')
   const [showAttendanceCheck, setShowAttendanceCheck] = useState(false)
 
   // Check if user is logged in
@@ -36,16 +41,9 @@ function MeetingDetailPage() {
   // Check if user is the host
   const isHost = isLoggedIn && meeting && user.id === meeting.host_id
 
-  // Use ref to avoid stale closure in polling interval
-  const chatsRef = useRef(chats)
-
-  // Update ref whenever chats change
-  useEffect(() => {
-    chatsRef.current = chats
-  }, [chats])
-
   // Edit modal state
-  const [editModalOpen, setEditModalOpen] = useState(false)
+  const { isOpen: editModalOpen, open: openEditModal, close: closeEditModal } = useModal(false)
+  const { isOpen: isEditImageModalOpen, open: openEditImageModal, close: closeEditImageModal } = useModal(false)
   const [editForm, setEditForm] = useState({
     location: '',
     host_introduction: '',
@@ -58,39 +56,48 @@ function MeetingDetailPage() {
     max_participants: '',
     purpose: 'coffee'
   })
-  const [editImageFile, setEditImageFile] = useState(null)
-  const [editImagePreview, setEditImagePreview] = useState(null)
-  const [isEditImageModalOpen, setIsEditImageModalOpen] = useState(false)
+
+  // Image upload hook for edit modal
+  const {
+    imageFile: editImageFile,
+    imagePreview: editImagePreview,
+    uploading: editImageUploading,
+    error: editImageError,
+    handleImageSelect: handleEditImageSelect,
+    removeImage: removeEditImage,
+    uploadImage: uploadEditImage,
+    reset: resetEditImage,
+  } = useImageUpload({ bucket: 'meeting-images', maxSize: 5 * 1024 * 1024 })
+
   const [editCroppedAreaPixels, setEditCroppedAreaPixels] = useState(null)
 
   // Fixed size and quality
   const editImageSize = 1200
   const editImageQuality = 85
 
+  // Fetch meeting data function for refetching
+  const refetchMeetingData = async () => {
+    await fetchMeetingData()
+  }
+
+  // Use custom hooks for chat and participants
+  const { chats, newMessage, setNewMessage, sending, sendMessage } = useMeetingChat(
+    id,
+    user,
+    isParticipant
+  )
+
+  const { joinMeeting, confirmMeeting, unconfirmMeeting, leaveMeeting, markAttendance } =
+    useMeetingParticipants(id, meeting, participants, user, refetchMeetingData)
+
   useEffect(() => {
     fetchMeetingData()
-
-    // Only set up realtime and polling if user is logged in
-    if (!isLoggedIn) {
-      setLoading(false)
-      return
-    }
-
-    // Try Realtime subscription
-    const cleanup = subscribeToChats()
-
-    // Also set up polling as backup (every 5 seconds)
-    const pollingInterval = setInterval(() => {
-      if (isParticipant) {
-        fetchChatsWithNotification()
-      }
-    }, 5000)
 
     // Listen for localStorage events for cross-tab notifications
     const handleStorageEvent = (e) => {
       if (e.key === 'temp_meeting_notification') {
         const notificationData = JSON.parse(e.newValue)
-        if (notificationData && notificationData.hostId === user.id) {
+        if (notificationData && notificationData.hostId === user?.id) {
           addNotification({
             type: notificationData.type,
             title: notificationData.title,
@@ -104,11 +111,9 @@ function MeetingDetailPage() {
     window.addEventListener('storage', handleStorageEvent)
 
     return () => {
-      cleanup()
-      clearInterval(pollingInterval)
       window.removeEventListener('storage', handleStorageEvent)
     }
-  }, [id, isParticipant, isLoggedIn, user?.id])
+  }, [id, user?.id, addNotification])
 
 
   const fetchMeetingData = async () => {
@@ -139,21 +144,10 @@ function MeetingDetailPage() {
 
       // Only check participant status if user is logged in
       if (isLoggedIn) {
-        console.log('Current user ID:', user.id)
-        console.log('Participants:', participantsData)
-
         const isUserParticipant = participantsData?.some((p) => p.user_id === user.id) || false
-
-        console.log('Is participant:', isUserParticipant)
 
         setParticipants(participantsData || [])
         setIsParticipant(isUserParticipant)
-
-        // Fetch chats if participant
-        if (isUserParticipant) {
-          console.log('Fetching chats...')
-          await fetchChats()
-        }
       } else {
         setParticipants(participantsData || [])
         setIsParticipant(false)
@@ -165,309 +159,47 @@ function MeetingDetailPage() {
     }
   }
 
-  const fetchChats = async () => {
-    const { data, error } = await supabase
-      .from('meeting_chats')
-      .select('*, user:users!user_id(username)')
-      .eq('meeting_id', id)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching chats:', error)
-    } else {
-      console.log('Chats loaded:', data)
-    }
-
-    setChats(data || [])
-  }
-
-  const fetchChatsWithNotification = async () => {
-    const { data, error } = await supabase
-      .from('meeting_chats')
-      .select('*, user:users!user_id(username)')
-      .eq('meeting_id', id)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching chats:', error)
-      return
-    }
-
-    if (data) {
-      // Check for new messages using ref to get latest chats value
-      // This prevents stale closure issue in setInterval
-      const newMessages = data.filter(
-        (newChat) => !chatsRef.current.some((existingChat) => existingChat.id === newChat.id)
-      )
-
-      // Send notification for new messages from other users
-      newMessages.forEach((message) => {
-        if (message.user_id !== user.id) {
-          console.log('New message detected via polling, adding notification')
-          const senderName = message.user?.username || message.anonymous_name
-          addNotification({
-            type: 'chat',
-            title: `모임 채팅 - 새 메시지`,
-            message: `${senderName}: ${message.message}`,
-            meetingId: id,
-            messageId: message.id, // Add unique message ID to prevent duplicates
-          })
-        }
-      })
-
-      setChats(data)
-    }
-  }
-
-  const subscribeToChats = () => {
-    console.log('Setting up realtime subscription for meeting:', id)
-
-    const channel = supabase
-      .channel(`meeting-${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'meeting_chats',
-          filter: `meeting_id=eq.${id}`,
-        },
-        async (payload) => {
-          console.log('New message received via realtime:', payload.new)
-
-          // Add notification if message is from someone else
-          if (payload.new.user_id !== user.id) {
-            console.log('Message from another user, adding notification')
-
-            // Fetch sender's username
-            const { data: senderData } = await supabase
-              .from('users')
-              .select('username')
-              .eq('id', payload.new.user_id)
-              .single()
-
-            const senderName = senderData?.username || payload.new.anonymous_name
-
-            addNotification({
-              type: 'chat',
-              title: `모임 채팅 - 새 메시지`,
-              message: `${senderName}: ${payload.new.message}`,
-              meetingId: id,
-              messageId: payload.new.id, // Add unique message ID to prevent duplicates
-            })
-          }
-
-          // Fetch chats to get user information
-          // This ensures we have the username for display
-          fetchChats()
-        }
-      )
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status)
-      })
-
-    return () => {
-      console.log('Cleaning up realtime subscription')
-      supabase.removeChannel(channel)
-    }
-  }
 
   const handleJoin = async () => {
-    // Check if user is logged in
-    if (!isLoggedIn) {
-      alert('로그인 후 이용 부탁드립니다')
+    const result = await joinMeeting()
+
+    if (result.redirectToLogin) {
       navigate('/login')
       return
     }
 
-    // Check if meeting is confirmed
-    if (meeting.status === 'confirmed') {
-      alert('이미 확정된 모임입니다. 더 이상 참가할 수 없습니다.')
-      return
-    }
-
-    try {
-      // Get anonymous name
-      const anonymousName = `참가자${participants.length + 1}`
-
-      await supabase.from('meeting_participants').insert([
-        {
-          meeting_id: id,
-          user_id: user.id,
-        },
-      ])
-
-      // Show success message
-      alert('모임 참가가 완료되었습니다! 카카오톡 오픈채팅방으로 이동합니다.')
-
-      // Fetch updated meeting data
-      await fetchMeetingData()
-
-      // Redirect to Kakao Open Chat if link exists
-      if (meeting.kakao_openchat_link) {
-        window.open(meeting.kakao_openchat_link, '_blank')
-      }
-    } catch (error) {
-      console.error('Error joining meeting:', error)
-      alert('참가 신청 중 오류가 발생했습니다')
+    // Redirect to Kakao Open Chat if link exists
+    if (result.success && result.kakaoOpenchatLink) {
+      window.open(result.kakaoOpenchatLink, '_blank')
     }
   }
 
   const handleConfirmMeeting = async () => {
-    if (!confirm('모임을 확정하시겠습니까? 확정 후에는 더 이상 새로운 참가자를 받을 수 없습니다.')) {
+    if (!window.confirm('모임을 확정하시겠습니까? 확정 후에는 더 이상 새로운 참가자를 받을 수 없습니다.')) {
       return
     }
-
-    try {
-      const { data, error } = await supabase.rpc('confirm_meeting', {
-        p_meeting_id: id,
-        p_user_id: user.id
-      })
-
-      if (error) {
-        throw new Error(error.message || '모임 확정 중 오류가 발생했습니다')
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || '모임 확정 중 오류가 발생했습니다')
-      }
-
-      alert('모임이 확정되었습니다!')
-      fetchMeetingData()
-    } catch (error) {
-      console.error('Error confirming meeting:', error)
-      alert(error.message)
-    }
+    await confirmMeeting()
   }
 
   const handleUnconfirmMeeting = async () => {
-    if (!confirm('모임 확정을 취소하시겠습니까? 취소하면 다시 새로운 참가자를 받을 수 있습니다.')) {
+    if (!window.confirm('모임 확정을 취소하시겠습니까? 취소하면 다시 새로운 참가자를 받을 수 있습니다.')) {
       return
     }
-
-    try {
-      const { data, error } = await supabase.rpc('unconfirm_meeting', {
-        p_meeting_id: id,
-        p_user_id: user.id
-      })
-
-      if (error) {
-        throw new Error(error.message || '확정 취소 중 오류가 발생했습니다')
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || '확정 취소 중 오류가 발생했습니다')
-      }
-
-      alert('모임 확정이 취소되었습니다. 다시 참가자를 받을 수 있습니다.')
-      fetchMeetingData()
-    } catch (error) {
-      console.error('Error unconfirming meeting:', error)
-      alert(error.message)
-    }
+    await unconfirmMeeting()
   }
 
   const handleLeaveMeeting = async () => {
-    if (!confirm('정말로 이 모임에서 나가시겠습니까?\n모임에서 나가면 채팅 기록도 사라집니다.')) {
+    if (!window.confirm('정말로 이 모임에서 나가시겠습니까?\n모임에서 나가면 채팅 기록도 사라집니다.')) {
       return
     }
-
-    try {
-      const { data, error } = await supabase.rpc('leave_meeting', {
-        p_meeting_id: id,
-        p_user_id: user.id
-      })
-
-      if (error) {
-        throw new Error(error.message || '모임 나가기 중 오류가 발생했습니다')
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || '모임 나가기 중 오류가 발생했습니다')
-      }
-
-      // Send notification to host
-      if (data.host_id && data.anonymous_name) {
-        console.log(`Participant ${data.anonymous_name} left the meeting. Host ID: ${data.host_id}`)
-
-        const notificationEvent = {
-          type: 'meeting_leave',
-          title: '모임 참가자 퇴장',
-          message: `${data.anonymous_name}님이 모임에서 나갔습니다.`,
-          meetingId: id,
-          timestamp: new Date().toISOString(),
-          hostId: data.host_id
-        }
-
-        // If current user is the host (unlikely but possible if admin leaves their own meeting)
-        // Add notification directly
-        if (user.id === data.host_id) {
-          addNotification({
-            type: notificationEvent.type,
-            title: notificationEvent.title,
-            message: notificationEvent.message,
-            meetingId: notificationEvent.meetingId,
-          })
-        }
-
-        // Store in localStorage to trigger events in other tabs/sessions
-        // This creates a storage event that other tabs can listen to
-        localStorage.setItem('temp_meeting_notification', JSON.stringify(notificationEvent))
-        localStorage.removeItem('temp_meeting_notification')
-      }
-
-      alert('모임에서 나갔습니다.')
+    const result = await leaveMeeting()
+    if (result.success) {
       navigate('/meetings')
-    } catch (error) {
-      console.error('Error leaving meeting:', error)
-      alert(error.message)
     }
   }
 
   const handleEditImageChange = (e) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert('이미지 파일만 업로드할 수 있습니다')
-        return
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('이미지 크기는 5MB 이하여야 합니다')
-        return
-      }
-
-      setEditImageFile(file)
-
-      // Create preview and get dimensions
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setEditImagePreview(reader.result)
-
-        // Get image dimensions
-        const img = new Image()
-        img.onload = () => {
-          const maxDimension = Math.max(img.width, img.height)
-          if (maxDimension > 1200) {
-            setEditImageSize(1200)
-          } else if (maxDimension > 800) {
-            setEditImageSize(800)
-          } else {
-            setEditImageSize(maxDimension)
-          }
-        }
-        img.src = reader.result
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleRemoveEditImage = () => {
-    setEditImageFile(null)
-    setEditImagePreview(null)
-    setEditCroppedAreaPixels(null)
+    handleEditImageSelect(e)
   }
 
   const handleEditImageAdjustConfirm = (cropPixels) => {
@@ -491,11 +223,11 @@ function MeetingDetailPage() {
       purpose: meeting.purpose
     })
 
-    // Set existing image preview
-    setEditImagePreview(meeting.image_url || null)
-    setEditImageFile(null)
+    // Reset image state for edit modal
+    resetEditImage()
+    // Note: We'll handle existing image preview in the modal render
 
-    setEditModalOpen(true)
+    openEditModal()
   }
 
   const handleEditSubmit = async (e) => {
@@ -629,14 +361,14 @@ function MeetingDetailPage() {
 
       if (error) throw error
 
-      alert('모임 정보가 수정되었습니다')
-      setEditModalOpen(false)
+      toast.success('모임 정보가 수정되었습니다')
+      closeEditModal()
 
       // Fetch updated data to ensure UI is refreshed with latest info
       await fetchMeetingData()
     } catch (error) {
       console.error('Error updating meeting:', error)
-      alert(error.message || '모임 수정 중 오류가 발생했습니다')
+      toast.error(error.message || '모임 수정 중 오류가 발생했습니다')
     }
   }
 
@@ -687,85 +419,38 @@ function MeetingDetailPage() {
       }
       console.log('Meeting deleted successfully:', deletedMeeting)
 
-      alert('모임이 성공적으로 삭제되었습니다')
+      toast.success('모임이 성공적으로 삭제되었습니다')
       navigate('/meetings')
     } catch (error) {
       console.error('Error deleting meeting:', error)
-      alert(error.message || '모임 삭제 중 오류가 발생했습니다')
+      toast.error(error.message || '모임 삭제 중 오류가 발생했습니다')
     }
   }
 
   const handleAttendanceMark = async (participantId, attendanceStatus) => {
     try {
       const { data, error } = await supabase.rpc('mark_attendance', {
-        p_meeting_id: id,
         p_participant_id: participantId,
         p_host_id: user.id,
-        p_attended: attendanceStatus
       })
 
-      if (error) {
-        throw new Error(error.message)
-      }
+      if (error) throw error
 
       if (!data.success) {
         throw new Error(data.error || '참석 체크 중 오류가 발생했습니다')
       }
 
-      // Refresh participant list
-      await fetchMeetingData()
-
-      const statusText = attendanceStatus === true ? '참석' : '불참'
-      alert(`${statusText}으로 표시되었습니다`)
+      toast.success(data.attended ? '참석 처리되었습니다' : '출석이 취소되었습니다')
+      await refetchMeetingData()
     } catch (error) {
       console.error('Error marking attendance:', error)
-      alert(error.message)
+      toast.error(error.message || '참석 체크 중 오류가 발생했습니다')
     }
   }
 
   const handleSendMessage = async (e) => {
     e.preventDefault()
-    if (!newMessage.trim()) return
-
-    try {
-      const participantIndex = participants.findIndex(
-        (p) => p.user_id === user.id
-      )
-      const anonymousName = `참가자${participantIndex + 1}`
-
-      console.log('Sending message:', {
-        meeting_id: id,
-        user_id: user.id,
-        message: newMessage,
-        anonymous_name: anonymousName,
-      })
-
-      const { data, error } = await supabase.from('meeting_chats').insert([
-        {
-          meeting_id: id,
-          user_id: user.id,
-          message: newMessage,
-          anonymous_name: anonymousName,
-        },
-      ]).select()
-
-      if (error) {
-        console.error('Error sending message:', error)
-        alert('메시지 전송 중 오류가 발생했습니다: ' + error.message)
-      } else {
-        console.log('Message sent successfully:', data)
-        setNewMessage('')
-        // Manually add the message to the chat list for immediate feedback
-        if (data && data.length > 0) {
-          setChats((prev) => [...prev, data[0]])
-        }
-        // Also refresh the chat list from server
-        await fetchChats()
-      }
-    } catch (error) {
-      console.error('Error sending message:', error)
-      alert('메시지 전송 중 오류가 발생했습니다')
-    }
+    await sendMessage(newMessage)
   }
 
   if (loading) {
@@ -1148,7 +833,7 @@ function MeetingDetailPage() {
       {/* Edit Meeting Modal */}
       <Modal
         isOpen={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
+        onClose={closeEditModal}
         title="모임 수정"
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
@@ -1241,16 +926,16 @@ function MeetingDetailPage() {
               모임 사진 (선택사항)
             </label>
             <div className="mt-1">
-              {editImagePreview ? (
+              {editImagePreview || meeting.image_url ? (
                 <div className="relative">
                   <img
-                    src={editImagePreview}
+                    src={editImagePreview || meeting.image_url}
                     alt="미리보기"
                     className="w-full h-48 object-cover rounded-lg"
                   />
                   <button
                     type="button"
-                    onClick={handleRemoveEditImage}
+                    onClick={removeEditImage}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1286,7 +971,7 @@ function MeetingDetailPage() {
                   type="button"
                   variant="secondary"
                   fullWidth
-                  onClick={() => setIsEditImageModalOpen(true)}
+                  onClick={openEditImageModal}
                 >
                   🔧 이미지 크기 조정
                 </Button>
@@ -1355,7 +1040,7 @@ function MeetingDetailPage() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setEditModalOpen(false)}
+              onClick={closeEditModal}
             >
               취소
             </Button>
@@ -1369,7 +1054,7 @@ function MeetingDetailPage() {
       {/* Image Adjustment Modal for Edit */}
       <ImageAdjustModal
         isOpen={isEditImageModalOpen}
-        onClose={() => setIsEditImageModalOpen(false)}
+        onClose={closeEditImageModal}
         imagePreview={editImagePreview}
         onConfirm={handleEditImageAdjustConfirm}
       />

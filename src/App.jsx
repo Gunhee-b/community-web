@@ -1,5 +1,6 @@
 import { BrowserRouter } from 'react-router-dom'
 import { useEffect } from 'react'
+import { Toaster } from 'react-hot-toast'
 import AppRoutes from './routes'
 import { useAuthStore } from './store/authStore'
 import { supabase } from './lib/supabase'
@@ -76,6 +77,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Toaster />
       <AppRoutes />
       {user && <PWAInstallPrompt />}
     </BrowserRouter>
