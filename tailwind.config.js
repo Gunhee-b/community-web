@@ -9,7 +9,22 @@ export default {
       maxWidth: {
         'app': '1280px',
       },
+      spacing: {
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.safe-bottom': {
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        },
+        '.touch-manipulation': {
+          touchAction: 'manipulation',
+        },
+      }
+      addUtilities(newUtilities)
+    }
+  ],
 }

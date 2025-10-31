@@ -65,6 +65,42 @@ function WriteAnswerPage() {
         setMyPublicAnswer(answerData)
         setPublicAnswerContent(answerData.content || '')
         setExistingImageUrls([answerData.image_url || null, answerData.image_url_2 || null])
+
+        // 기존 공개 답변이 있는데 체크 레코드가 없으면 자동 생성 (보정 로직)
+        const { data: existingCheck, error: checkQueryError } = await supabase
+          .from('question_checks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('question_id', id)
+          .maybeSingle()
+
+        console.log('🔍 [WriteAnswerPage] Checking existing check:', {
+          questionId: id,
+          userId: user.id,
+          existingCheck,
+          checkQueryError
+        })
+
+        if (!existingCheck) {
+          // 답변 작성일을 기준으로 체크 생성
+          const { data: newCheck, error: checkError } = await supabase
+            .from('question_checks')
+            .insert({
+              user_id: user.id,
+              question_id: id,
+              is_checked: true,
+              checked_at: answerData.created_at // 답변 작성일 사용
+            })
+            .select()
+
+          if (checkError) {
+            console.error('❌ [WriteAnswerPage] Error creating check:', checkError)
+          } else {
+            console.log('✅ [WriteAnswerPage] Check record created:', newCheck)
+          }
+        } else {
+          console.log('✓ [WriteAnswerPage] Check already exists')
+        }
       }
     } catch (error) {
       console.error('Error fetching question:', error)
@@ -114,6 +150,42 @@ function WriteAnswerPage() {
           .eq('id', myPublicAnswer.id)
 
         if (error) throw error
+
+        // 수정 시에도 체크 레코드가 없으면 생성 (보정)
+        const { data: existingCheck, error: checkQueryError } = await supabase
+          .from('question_checks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('question_id', id)
+          .maybeSingle()
+
+        console.log('🔍 [WriteAnswerPage - Update] Checking for check record:', {
+          questionId: id,
+          userId: user.id,
+          existingCheck,
+          checkQueryError
+        })
+
+        if (!existingCheck) {
+          const { data: newCheck, error: checkError } = await supabase
+            .from('question_checks')
+            .insert({
+              user_id: user.id,
+              question_id: id,
+              is_checked: true,
+              checked_at: myPublicAnswer.created_at // 기존 답변의 작성일 사용
+            })
+            .select()
+
+          if (checkError) {
+            console.error('❌ [WriteAnswerPage - Update] Error creating check:', checkError)
+          } else {
+            console.log('✅ [WriteAnswerPage - Update] Check record created:', newCheck)
+          }
+        } else {
+          console.log('✓ [WriteAnswerPage - Update] Check already exists')
+        }
+
         toast.success('답변이 수정되었습니다!')
       } else {
         // 새로 작성
@@ -125,7 +197,45 @@ function WriteAnswerPage() {
         })
 
         if (error) throw error
-        toast.success('답변이 작성되었습니다!')
+
+        // 공개 답변 작성 시 자동으로 체크 (90-Day Challenge 카운트)
+        // question_checks 테이블에 레코드가 없으면 생성
+        const { data: existingCheck, error: checkQueryError } = await supabase
+          .from('question_checks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('question_id', id)
+          .maybeSingle()
+
+        console.log('🔍 [WriteAnswerPage - New] Checking for check record:', {
+          questionId: id,
+          userId: user.id,
+          existingCheck,
+          checkQueryError
+        })
+
+        if (!existingCheck) {
+          const { data: newCheck, error: checkError } = await supabase
+            .from('question_checks')
+            .insert({
+              user_id: user.id,
+              question_id: id,
+              is_checked: true,
+              checked_at: new Date().toISOString()
+            })
+            .select()
+
+          if (checkError) {
+            console.error('❌ [WriteAnswerPage - New] Error creating check:', checkError)
+            // 체크 생성 실패해도 답변은 저장되었으므로 에러 무시
+          } else {
+            console.log('✅ [WriteAnswerPage - New] Check record created:', newCheck)
+          }
+        } else {
+          console.log('✓ [WriteAnswerPage - New] Check already exists')
+        }
+
+        toast.success('답변이 작성되었습니다! 90-Day Challenge에 카운트되었습니다.')
       }
 
       // 질문 상세 페이지로 이동
@@ -307,7 +417,7 @@ function WriteAnswerPage() {
                         return newUrls
                       })
                     }}
-                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 shadow-lg"
+                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 shadow-lg active:bg-red-800"
                     type="button"
                   >
                     <svg
@@ -326,7 +436,7 @@ function WriteAnswerPage() {
                   </button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 md:p-8 lg:p-12 text-center hover:border-blue-500 active:border-blue-600 transition-colors cursor-pointer touch-manipulation">
                   <input
                     type="file"
                     accept="image/*"
@@ -334,10 +444,10 @@ function WriteAnswerPage() {
                     className="hidden"
                     id={`image-upload-${index}`}
                   />
-                  <label htmlFor={`image-upload-${index}`} className="cursor-pointer">
+                  <label htmlFor={`image-upload-${index}`} className="cursor-pointer block">
                     <div className="flex flex-col items-center">
                       <svg
-                        className="w-10 h-10 text-gray-400 mb-2"
+                        className="w-12 h-12 md:w-12 md:h-12 lg:w-14 lg:h-14 text-gray-400 mb-2"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -349,7 +459,7 @@ function WriteAnswerPage() {
                           d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                         />
                       </svg>
-                      <span className="text-gray-600 font-medium text-sm">클릭하여 업로드</span>
+                      <span className="text-gray-600 font-medium text-sm md:text-base">클릭하여 업로드</span>
                       <span className="text-xs text-gray-500 mt-1">최대 5MB</span>
                     </div>
                   </label>
@@ -369,10 +479,10 @@ function WriteAnswerPage() {
           value={publicAnswerContent}
           onChange={(e) => setPublicAnswerContent(e.target.value)}
           placeholder="이 질문에 대한 당신의 생각을 자유롭게 적어보세요...&#10;&#10;예시:&#10;- 이 질문을 보고 떠오른 생각이나 경험&#10;- 질문에 대한 나만의 해석이나 관점&#10;- 다른 사람들과 나누고 싶은 인사이트&#10;&#10;💡 텍스트 없이 이미지만 업로드할 수도 있습니다!"
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-base"
           rows={12}
         />
-        <div className="flex items-center justify-between mt-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
           <p className="text-sm text-gray-500">
             {publicAnswerContent.length}자
             {publicAnswerContent.length < 10 &&
@@ -390,18 +500,25 @@ function WriteAnswerPage() {
       </Card>
 
       {/* 버튼 */}
-      <div className="flex gap-3 sticky bottom-0 bg-white py-4 border-t">
+      <div className="flex gap-3 sticky bottom-0 bg-white py-4 px-4 -mx-4 md:px-0 md:mx-0 border-t shadow-lg md:shadow-none safe-bottom">
         <Button
           onClick={() => navigate(`/questions/${id}`)}
           variant="outline"
           fullWidth
+          className="min-h-[44px] md:min-h-[40px] touch-manipulation"
         >
           취소
         </Button>
         <Button
           onClick={handleSavePublicAnswer}
-          disabled={saving || uploading || (!publicAnswerContent.trim() && !imageFile1 && !existingImageUrl1 && !imageFile2 && !existingImageUrl2) || (publicAnswerContent.trim() && publicAnswerContent.trim().length < 10 && !imageFile1 && !existingImageUrl1 && !imageFile2 && !existingImageUrl2)}
+          disabled={
+            saving ||
+            uploading ||
+            (!publicAnswerContent.trim() && !hasImages && !existingImageUrls[0] && !existingImageUrls[1]) ||
+            (publicAnswerContent.trim() && publicAnswerContent.trim().length < 10 && !hasImages && !existingImageUrls[0] && !existingImageUrls[1])
+          }
           fullWidth
+          className="min-h-[44px] md:min-h-[40px] touch-manipulation"
         >
           {uploading ? '이미지 업로드 중...' : saving ? '저장 중...' : (myPublicAnswer ? '✏️ 수정 완료' : '✍️ 작성 완료')}
         </Button>

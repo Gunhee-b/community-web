@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { formatDate } from '../../utils/date'
@@ -9,6 +9,7 @@ import Loading from '../../components/common/Loading'
 
 function QuestionsListPage() {
   const user = useAuthStore((state) => state.user)
+  const location = useLocation()
   const [questions, setQuestions] = useState([])
   const [checkedQuestions, setCheckedQuestions] = useState(new Set())
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,31 @@ function QuestionsListPage() {
   const [challengeStats, setChallengeStats] = useState(null)
 
   useEffect(() => {
+    console.log('🔄 [QuestionsListPage] Component mounted or location changed:', location.pathname)
     fetchData()
+  }, [location.pathname])
+
+  // 페이지가 다시 보여질 때 데이터 새로고침 (탭 전환 시)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('🔄 [QuestionsListPage] Page visible - refreshing data')
+        fetchData()
+      }
+    }
+
+    const handleFocus = () => {
+      console.log('🔄 [QuestionsListPage] Window focused - refreshing data')
+      fetchData()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   const fetchData = async () => {
@@ -32,23 +57,87 @@ function QuestionsListPage() {
       if (questionsError) throw questionsError
       setQuestions(questionsData || [])
 
-      // 체크한 질문 ID 목록 가져오기
-      const { data: checksData } = await supabase
+      // 체크한 질문 ID 목록 가져오기 (checked_at도 함께)
+      const { data: checksData, error: checksError } = await supabase
         .from('question_checks')
-        .select('question_id')
+        .select('question_id, checked_at')
         .eq('user_id', user.id)
+        .eq('is_checked', true)
+        .order('checked_at', { ascending: true })
+
+      console.log('🔍 [QuestionsListPage] Fetched checks:', {
+        userId: user.id,
+        checksCount: checksData?.length || 0,
+        checksData,
+        checksError
+      })
 
       const checkedSet = new Set(checksData?.map(c => c.question_id) || [])
       setCheckedQuestions(checkedSet)
 
-      // 챌린지 통계 가져오기
-      const { data: statsData } = await supabase
-        .from('challenge_stats')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      console.log('📊 [QuestionsListPage] Checked questions:', {
+        checkedCount: checkedSet.size,
+        questionIds: Array.from(checkedSet)
+      })
 
-      setChallengeStats(statsData)
+      // 챌린지 통계 직접 계산
+      let currentStreak = 0
+      let longestStreak = 0
+      let tempStreak = 0
+
+      if (checksData && checksData.length > 0) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        // 날짜별로 그룹화 (중복 날짜 제거)
+        const uniqueDates = [...new Set(checksData.map(check => {
+          const date = new Date(check.checked_at)
+          date.setHours(0, 0, 0, 0)
+          return date.getTime()
+        }))].sort((a, b) => a - b)
+
+        // 현재 연속 일수 계산 (오늘 또는 어제부터 역순으로)
+        let checkDate = today.getTime()
+        let foundToday = false
+
+        for (let i = uniqueDates.length - 1; i >= 0; i--) {
+          const date = uniqueDates[i]
+
+          if (date === checkDate) {
+            currentStreak++
+            foundToday = true
+            checkDate -= 24 * 60 * 60 * 1000
+          } else if (date === checkDate - 24 * 60 * 60 * 1000 && !foundToday) {
+            currentStreak++
+            checkDate = date - 24 * 60 * 60 * 1000
+          } else {
+            break
+          }
+        }
+
+        // 최장 연속 일수 계산
+        tempStreak = 1
+        for (let i = 1; i < uniqueDates.length; i++) {
+          const diff = uniqueDates[i] - uniqueDates[i - 1]
+          const daysDiff = diff / (24 * 60 * 60 * 1000)
+
+          if (daysDiff === 1) {
+            tempStreak++
+            longestStreak = Math.max(longestStreak, tempStreak)
+          } else {
+            tempStreak = 1
+          }
+        }
+        longestStreak = Math.max(longestStreak, tempStreak, currentStreak)
+      }
+
+      // 통계 데이터 설정
+      setChallengeStats({
+        current_streak: currentStreak,
+        longest_streak: longestStreak,
+        total_checks: checksData?.length || 0,
+        completed_at: (checksData?.length || 0) >= 90 ? new Date().toISOString() : null
+      })
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {

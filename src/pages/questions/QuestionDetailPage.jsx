@@ -6,19 +6,13 @@ import { formatDate } from '../../utils/date'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import Loading from '../../components/common/Loading'
-import Modal from '../../components/common/Modal'
 
 function QuestionDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const [question, setQuestion] = useState(null)
-  const [checkData, setCheckData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showAnswerModal, setShowAnswerModal] = useState(false)
-  const [userAnswer, setUserAnswer] = useState('')
-  const [userNote, setUserNote] = useState('')
-  const [saving, setSaving] = useState(false)
 
   // 공개 답변 관련 상태
   const [publicAnswers, setPublicAnswers] = useState([])
@@ -46,20 +40,6 @@ function QuestionDetailPage() {
       if (questionError) throw questionError
 
       setQuestion(questionData)
-
-      // 체크 정보 가져오기
-      const { data: checkData } = await supabase
-        .from('question_checks')
-        .select('*')
-        .eq('question_id', id)
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (checkData) {
-        setCheckData(checkData)
-        setUserAnswer(checkData.user_answer || '')
-        setUserNote(checkData.user_note || '')
-      }
 
       // 공개 답변 가져오기
       await fetchPublicAnswers()
@@ -96,6 +76,42 @@ function QuestionDetailPage() {
       const myAnswer = answers?.find(a => a.user_id === user.id)
       if (myAnswer) {
         setMyPublicAnswer(myAnswer)
+
+        // 답변이 있는데 체크가 없으면 자동 생성 (보정)
+        const { data: existingCheck, error: checkQueryError } = await supabase
+          .from('question_checks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('question_id', id)
+          .maybeSingle()
+
+        console.log('🔍 [QuestionDetailPage] Checking for check record:', {
+          questionId: id,
+          userId: user.id,
+          hasPublicAnswer: true,
+          existingCheck,
+          checkQueryError
+        })
+
+        if (!existingCheck) {
+          const { data: newCheck, error: checkError } = await supabase
+            .from('question_checks')
+            .insert({
+              user_id: user.id,
+              question_id: id,
+              is_checked: true,
+              checked_at: myAnswer.created_at
+            })
+            .select()
+
+          if (checkError) {
+            console.error('❌ [QuestionDetailPage] Error creating check:', checkError)
+          } else {
+            console.log('✅ [QuestionDetailPage] Check record created:', newCheck)
+          }
+        } else {
+          console.log('✓ [QuestionDetailPage] Check already exists')
+        }
       }
 
       // 각 답변의 댓글 가져오기
@@ -131,76 +147,6 @@ function QuestionDetailPage() {
       }))
     } catch (error) {
       console.error('Error fetching comments:', error)
-    }
-  }
-
-  const handleCheck = async () => {
-    if (!checkData) {
-      // 체크가 없으면 모달 열기
-      setShowAnswerModal(true)
-    } else {
-      // 이미 체크했으면 체크 취소
-      try {
-        const { error } = await supabase
-          .from('question_checks')
-          .delete()
-          .eq('id', checkData.id)
-
-        if (error) throw error
-
-        setCheckData(null)
-        setUserAnswer('')
-        setUserNote('')
-        alert('체크를 취소했습니다.')
-        fetchQuestionDetail()
-      } catch (error) {
-        console.error('Error unchecking:', error)
-        alert('체크 취소에 실패했습니다.')
-      }
-    }
-  }
-
-  const handleSaveAnswer = async () => {
-    setSaving(true)
-    try {
-      if (checkData) {
-        // 업데이트
-        const { error } = await supabase
-          .from('question_checks')
-          .update({
-            user_answer: userAnswer,
-            user_note: userNote,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', checkData.id)
-
-        if (error) throw error
-      } else {
-        // 생성
-        const { data, error } = await supabase
-          .from('question_checks')
-          .insert({
-            user_id: user.id,
-            question_id: id,
-            user_answer: userAnswer,
-            user_note: userNote,
-            is_checked: true
-          })
-          .select()
-          .single()
-
-        if (error) throw error
-        setCheckData(data)
-      }
-
-      setShowAnswerModal(false)
-      alert('저장되었습니다!')
-      fetchQuestionDetail()
-    } catch (error) {
-      console.error('Error saving answer:', error)
-      alert('저장에 실패했습니다.')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -302,12 +248,12 @@ function QuestionDetailPage() {
           <span className="text-sm text-gray-500">
             {formatDate(question.scheduled_date, 'yyyy년 MM월 dd일')}
           </span>
-          {checkData && (
+          {myPublicAnswer && (
             <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
               <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
-              완료
+              답변 완료
             </span>
           )}
         </div>
@@ -382,49 +328,33 @@ function QuestionDetailPage() {
         </Card>
       )}
 
-      {/* 내 답변 */}
-      {checkData && checkData.user_answer && (
-        <Card className="mb-6 bg-blue-50 border-l-4 border-blue-500">
-          <h3 className="font-semibold text-gray-900 mb-2">내 답변</h3>
-          <p className="text-gray-700 whitespace-pre-wrap mb-3">{checkData.user_answer}</p>
-          {checkData.user_note && (
-            <>
-              <h4 className="font-semibold text-gray-900 mb-1 text-sm">메모</h4>
-              <p className="text-gray-600 text-sm whitespace-pre-wrap">{checkData.user_note}</p>
-            </>
-          )}
-          <p className="text-xs text-gray-500 mt-3">
-            작성일: {formatDate(checkData.checked_at, 'yyyy-MM-dd HH:mm')}
+      {/* 답변 작성 상태 표시 */}
+      {myPublicAnswer ? (
+        <Card className="mb-6 bg-green-50 border-l-4 border-green-500">
+          <h3 className="font-semibold text-gray-900 mb-1">✅ 답변 작성 완료</h3>
+          <p className="text-sm text-gray-600">
+            {formatDate(myPublicAnswer.created_at, 'yyyy년 MM월 dd일')}에 작성하셨습니다
+          </p>
+        </Card>
+      ) : (
+        <Card className="mb-6 bg-gray-50 border-l-4 border-gray-300">
+          <h3 className="font-semibold text-gray-900 mb-1">📝 답변 미작성</h3>
+          <p className="text-sm text-gray-600">
+            공개 답변을 작성하여 90-Day Challenge에 참여하세요
           </p>
         </Card>
       )}
 
-      {/* 체크 버튼 */}
-      <div className="flex gap-3 mb-8">
-        <Button
-          onClick={handleCheck}
-          variant={checkData ? 'outline' : 'primary'}
-          fullWidth
-          className={checkData ? 'border-red-500 text-red-600 hover:bg-red-50' : ''}
-        >
-          {checkData ? '체크 취소' : '✓ 체크하기'}
-        </Button>
-        {checkData && (
-          <Button onClick={() => setShowAnswerModal(true)} fullWidth>
-            답변 수정
-          </Button>
-        )}
-      </div>
-
       {/* 공개 답변 섹션 */}
       <div className="border-t-2 border-gray-200 pt-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900">
             커뮤니티 답변 ({publicAnswers.length})
           </h2>
           <Button
             onClick={() => navigate(`/questions/${id}/write-answer`)}
             variant={myPublicAnswer ? 'outline' : 'primary'}
+            className="min-h-[44px] md:min-h-[40px] touch-manipulation whitespace-nowrap"
           >
             {myPublicAnswer ? '✏️ 내 답변 수정' : '✍️ 답변 작성하기'}
           </Button>
@@ -441,8 +371,8 @@ function QuestionDetailPage() {
             {publicAnswers.map((answer) => (
               <Card key={answer.id} className="bg-white">
                 {/* 답변 헤더 */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-start justify-between mb-3 gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-gray-900">
                       {answer.users?.username || '알 수 없음'}
                     </span>
@@ -452,14 +382,14 @@ function QuestionDetailPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap">
                       {formatDate(answer.created_at, 'yyyy-MM-dd HH:mm')}
                     </span>
                     {answer.user_id === user.id && (
                       <button
                         onClick={handleDeletePublicAnswer}
-                        className="text-red-600 hover:text-red-700 text-sm"
+                        className="text-red-600 hover:text-red-700 active:text-red-800 text-sm min-h-[24px] px-1 touch-manipulation"
                       >
                         삭제
                       </button>
@@ -489,7 +419,7 @@ function QuestionDetailPage() {
 
                 {/* 답변 내용 */}
                 {answer.content && (
-                  <p className="text-gray-800 whitespace-pre-wrap leading-relaxed mb-4">
+                  <p className="text-sm md:text-base text-gray-800 whitespace-pre-wrap leading-relaxed mb-4 break-words">
                     {answer.content}
                   </p>
                 )}
@@ -505,7 +435,7 @@ function QuestionDetailPage() {
                         ...prev,
                         [answer.id]: !prev[answer.id]
                       }))}
-                      className="text-sm text-blue-600 hover:text-blue-700"
+                      className="text-sm text-blue-600 hover:text-blue-700 active:text-blue-800 min-h-[32px] md:min-h-0 px-2 md:px-3 touch-manipulation"
                     >
                       {showCommentForm[answer.id] ? '취소' : '댓글 달기'}
                     </button>
@@ -513,7 +443,7 @@ function QuestionDetailPage() {
 
                   {/* 댓글 입력 폼 */}
                   {showCommentForm[answer.id] && (
-                    <div className="mb-4">
+                    <div className="mb-4 bg-gray-50 md:bg-transparent p-3 md:p-4 rounded-lg md:border md:border-gray-200">
                       <textarea
                         value={commentContent[answer.id] || ''}
                         onChange={(e) => setCommentContent(prev => ({
@@ -521,8 +451,8 @@ function QuestionDetailPage() {
                           [answer.id]: e.target.value
                         }))}
                         placeholder="댓글을 입력하세요..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                        rows={2}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base resize-none"
+                        rows={3}
                       />
                       <div className="flex justify-end gap-2 mt-2">
                         <Button
@@ -532,6 +462,7 @@ function QuestionDetailPage() {
                           }))}
                           variant="outline"
                           size="sm"
+                          className="min-h-[36px] md:min-h-0 touch-manipulation"
                         >
                           취소
                         </Button>
@@ -539,6 +470,7 @@ function QuestionDetailPage() {
                           onClick={() => handleSaveComment(answer.id)}
                           disabled={savingComment[answer.id]}
                           size="sm"
+                          className="min-h-[36px] md:min-h-0 touch-manipulation"
                         >
                           {savingComment[answer.id] ? '저장 중...' : '댓글 작성'}
                         </Button>
@@ -551,8 +483,8 @@ function QuestionDetailPage() {
                     <div className="space-y-3">
                       {commentsByAnswer[answer.id].map((comment) => (
                         <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-start justify-between mb-2 gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium text-gray-900">
                                 {comment.users?.username || '알 수 없음'}
                               </span>
@@ -562,21 +494,21 @@ function QuestionDetailPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500">
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-xs text-gray-500 whitespace-nowrap">
                                 {formatDate(comment.created_at, 'yyyy-MM-dd HH:mm')}
                               </span>
                               {comment.user_id === user.id && (
                                 <button
                                   onClick={() => handleDeleteComment(comment.id, answer.id)}
-                                  className="text-red-600 hover:text-red-700 text-xs"
+                                  className="text-red-600 hover:text-red-700 active:text-red-800 text-xs min-h-[24px] px-1 touch-manipulation"
                                 >
                                   삭제
                                 </button>
                               )}
                             </div>
                           </div>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                          <p className="text-sm md:text-base text-gray-700 whitespace-pre-wrap break-words">
                             {comment.content}
                           </p>
                         </div>
@@ -589,56 +521,6 @@ function QuestionDetailPage() {
           </div>
         )}
       </div>
-
-      {/* 답변 입력 모달 (개인 메모용) */}
-      <Modal
-        isOpen={showAnswerModal}
-        onClose={() => setShowAnswerModal(false)}
-        title={checkData ? "답변 수정" : "이 질문에 답변하기"}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              나의 답변 (선택사항)
-            </label>
-            <textarea
-              value={userAnswer}
-              onChange={(e) => setUserAnswer(e.target.value)}
-              placeholder="이 질문에 대한 당신의 생각을 자유롭게 적어보세요..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={6}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              메모 (선택사항)
-            </label>
-            <textarea
-              value={userNote}
-              onChange={(e) => setUserNote(e.target.value)}
-              placeholder="개인적인 메모나 추가 생각..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-            />
-          </div>
-          <div className="flex gap-3">
-            <Button
-              onClick={() => setShowAnswerModal(false)}
-              variant="outline"
-              fullWidth
-            >
-              취소
-            </Button>
-            <Button
-              onClick={handleSaveAnswer}
-              disabled={saving}
-              fullWidth
-            >
-              {saving ? '저장 중...' : '저장'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
     </div>
   )
