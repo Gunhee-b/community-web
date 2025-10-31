@@ -15,6 +15,12 @@ function App() {
   const user = useAuthStore((state) => state.user)
   const session = useAuthStore((state) => state.session)
   const setUser = useAuthStore((state) => state.setUser)
+  const initialize = useAuthStore((state) => state.initialize)
+
+  useEffect(() => {
+    // Initialize auth state (check for social auth session)
+    initialize()
+  }, [])
 
   useEffect(() => {
     // Check if session is expired and clear it

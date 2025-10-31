@@ -8,6 +8,8 @@ import AdminLayout from './components/common/AdminLayout'
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage'
 import SignupPage from './pages/auth/SignupPage'
+import CallbackPage from './pages/auth/CallbackPage'
+import LinkAccountPage from './pages/auth/LinkAccountPage'
 
 // Main Pages
 import HomePage from './pages/HomePage'
@@ -93,6 +95,7 @@ function AppRoutes() {
           </PublicRoute>
         }
       />
+      <Route path="/auth/callback" element={<CallbackPage />} />
 
       {/* Public Home and Meetings Routes */}
       <Route path="/" element={<MainLayout />}>
@@ -111,6 +114,7 @@ function AppRoutes() {
         }
       >
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="link-account" element={<LinkAccountPage />} />
 
         {/* Voting Routes */}
         <Route path="vote" element={<VotePage />} />

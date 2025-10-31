@@ -7,13 +7,26 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
   },
+  // Deep linking configuration for OAuth redirects
+  deepLinks: {
+    enabled: true,
+    scheme: 'ingk',
+  },
   ios: {
     contentInset: 'automatic',
     limitsNavigationsToAppBoundDomains: true,
+    // Handle OAuth callback URLs
+    allowsLinkPreview: false,
   },
   android: {
     minWebViewVersion: 60,
     allowMixedContent: false,
+    // Handle OAuth callback URLs
+    customBuildGradle: {
+      manifestPlaceholders: {
+        'ingk-scheme': 'ingk',
+      },
+    },
   },
   plugins: {
     SplashScreen: {
