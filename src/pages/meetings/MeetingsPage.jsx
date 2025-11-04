@@ -11,13 +11,16 @@ function MeetingsPage() {
   const user = useAuthStore((state) => state.user)
   const [meetings, setMeetings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('upcoming') // upcoming, past
+  const [filter, setFilter] = useState('casual') // casual, regular, past
 
   // Check if user is logged in
   const isLoggedIn = !!user
 
   // Check if user can create meetings (only when logged in)
   const canCreateMeeting = isLoggedIn && (user.role === 'admin' || user.role === 'meeting_host')
+
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     fetchMeetings()
@@ -33,16 +36,23 @@ function MeetingsPage() {
           participants:meeting_participants(count)
         `)
 
-      if (filter === 'upcoming') {
+      if (filter === 'regular') {
+        // 정기 모임만 표시
+        query = query.eq('meeting_type', 'regular')
+      } else if (filter === 'casual') {
+        // 즉흥 모임 중 모집 중인 것만
         query = query
+          .eq('meeting_type', 'casual')
           .gte('start_datetime', new Date().toISOString())
           .in('status', ['recruiting', 'confirmed'])
-      } else {
-        query = query.lt('start_datetime', new Date().toISOString())
+      } else if (filter === 'past') {
+        // 지난 모임 (관리자 전용) - 모든 타입의 지난 모임
+        query = query
+          .lt('start_datetime', new Date().toISOString())
       }
 
       const { data } = await query.order('start_datetime', {
-        ascending: filter === 'upcoming',
+        ascending: filter !== 'past',
       })
 
       setMeetings(data || [])
@@ -75,27 +85,42 @@ function MeetingsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex space-x-2 mb-6">
-        <button
-          onClick={() => setFilter('upcoming')}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            filter === 'upcoming'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700'
-          }`}
-        >
-          모집 중
-        </button>
-        <button
-          onClick={() => setFilter('past')}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            filter === 'past'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700'
-          }`}
-        >
-          지난 모임
-        </button>
+      <div className="mb-6">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setFilter('casual')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              filter === 'casual'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            ⚡ 즉흥 모임
+          </button>
+          <button
+            onClick={() => setFilter('regular')}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              filter === 'regular'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            📅 정기 모임
+          </button>
+          {/* 관리자 전용: 지난 모임 탭 */}
+          {isAdmin && (
+            <button
+              onClick={() => setFilter('past')}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                filter === 'past'
+                  ? 'bg-gray-600 text-white'
+                  : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              🕐 지난 모임 (관리자)
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Meetings List */}
@@ -113,17 +138,47 @@ function MeetingsPage() {
                   />
                 )}
 
-                <div className="mb-3 flex items-center justify-between">
-                  <span
-                    className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                      meeting.purpose === 'coffee'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {meeting.purpose === 'coffee' ? '☕ 커피' : '🍺 술'}
-                  </span>
-                  {filter === 'upcoming' && (
+                {/* Badges */}
+                <div className="mb-3 flex flex-wrap gap-2 items-center justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    {/* Meeting Type Badge */}
+                    <span
+                      className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                        meeting.meeting_type === 'regular'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}
+                    >
+                      {meeting.meeting_type === 'regular' ? '📅 정기' : '⚡ 즉흥'}
+                    </span>
+
+                    {/* Casual Meeting Subtype Badge (only for casual meetings) */}
+                    {meeting.meeting_type === 'casual' && meeting.casual_meeting_type && (
+                      <span
+                        className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                          meeting.casual_meeting_type === 'hobby'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-indigo-100 text-indigo-700'
+                        }`}
+                      >
+                        {meeting.casual_meeting_type === 'hobby' ? '🎨 취미' : '💬 토론'}
+                      </span>
+                    )}
+
+                    {/* Purpose Badge */}
+                    <span
+                      className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                        meeting.purpose === 'coffee'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {meeting.purpose === 'coffee' ? '☕ 커피' : '🍺 술'}
+                    </span>
+                  </div>
+
+                  {/* D-day (only for casual meetings not in past filter) */}
+                  {filter !== 'past' && meeting.meeting_type === 'casual' && (
                     <span className="text-sm font-medium text-blue-600">
                       {getDday(meeting.start_datetime)}
                     </span>
@@ -134,10 +189,28 @@ function MeetingsPage() {
                   {meeting.location}
                 </h3>
 
+                {/* DateTime Info */}
                 <p className="text-gray-600 mb-4">
-                  {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
-                  {' - '}
-                  {formatDate(meeting.end_datetime, 'HH:mm')}
+                  {meeting.meeting_type === 'regular' ? (
+                    <>
+                      <span className="font-medium">
+                        매주{' '}
+                        {
+                          ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][
+                            meeting.recurrence_day_of_week
+                          ]
+                        }
+                      </span>
+                      {' '}
+                      <span>{meeting.recurrence_time}</span>
+                    </>
+                  ) : (
+                    <>
+                      {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
+                      {' - '}
+                      {formatDate(meeting.end_datetime, 'HH:mm')}
+                    </>
+                  )}
                 </p>
 
                 <div className="flex items-center justify-between text-sm">
@@ -169,11 +242,13 @@ function MeetingsPage() {
         <Card>
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg mb-4">
-              {filter === 'upcoming'
-                ? '모집 중인 모임이 없습니다'
+              {filter === 'regular'
+                ? '정기 모임이 없습니다'
+                : filter === 'casual'
+                ? '즉흥 모임이 없습니다'
                 : '지난 모임이 없습니다'}
             </p>
-            {filter === 'upcoming' && canCreateMeeting && (
+            {(filter !== 'past' && canCreateMeeting) && (
               <Link to="/meetings/create">
                 <Button>첫 모임을 만들어보세요</Button>
               </Link>

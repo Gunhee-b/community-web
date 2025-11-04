@@ -493,9 +493,35 @@ function MeetingDetailPage() {
               />
             )}
 
-            <div className="mb-4">
+            {/* Meeting Badges */}
+            <div className="mb-4 flex flex-wrap gap-2 items-center">
+              {/* Meeting Type Badge */}
               <span
-                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                  meeting.meeting_type === 'regular'
+                    ? 'bg-purple-100 text-purple-700'
+                    : 'bg-green-100 text-green-700'
+                }`}
+              >
+                {meeting.meeting_type === 'regular' ? '📅 정기 모임' : '⚡ 즉흥 모임'}
+              </span>
+
+              {/* Casual Meeting Subtype Badge */}
+              {meeting.meeting_type === 'casual' && meeting.casual_meeting_type && (
+                <span
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    meeting.casual_meeting_type === 'hobby'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  {meeting.casual_meeting_type === 'hobby' ? '🎨 취미 모임' : '💬 토론 모임'}
+                </span>
+              )}
+
+              {/* Purpose Badge */}
+              <span
+                className={`px-3 py-1.5 rounded-full text-sm font-medium ${
                   meeting.purpose === 'coffee'
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-red-100 text-red-700'
@@ -503,9 +529,13 @@ function MeetingDetailPage() {
               >
                 {meeting.purpose === 'coffee' ? '☕ 커피' : '🍺 술'}
               </span>
-              <span className="ml-3 text-lg font-bold text-blue-600">
-                {getDday(meeting.start_datetime)}
-              </span>
+
+              {/* D-day (only for casual meetings) */}
+              {meeting.meeting_type === 'casual' && (
+                <span className="ml-auto text-lg font-bold text-blue-600">
+                  {getDday(meeting.start_datetime)}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center justify-between mb-2">
@@ -578,10 +608,22 @@ function MeetingDetailPage() {
             )}
 
             <div className="space-y-2 text-gray-600 mb-4">
+              {/* DateTime - Different display for regular vs casual meetings */}
               <p>
-                📅 {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
-                {' - '}
-                {formatDate(meeting.end_datetime, 'HH:mm')}
+                {meeting.meeting_type === 'regular' ? (
+                  <>
+                    📅 <span className="font-medium">매주{' '}
+                    {['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][meeting.recurrence_day_of_week]}
+                    </span>
+                    {' '}⏰ {meeting.recurrence_time}
+                  </>
+                ) : (
+                  <>
+                    📅 {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
+                    {' - '}
+                    {formatDate(meeting.end_datetime, 'HH:mm')}
+                  </>
+                )}
               </p>
               <p>👤 호스트: {meeting.host?.username}</p>
               <p>

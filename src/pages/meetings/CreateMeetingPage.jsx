@@ -16,6 +16,10 @@ function CreateMeetingPage() {
     location: '',
     hostIntroduction: '',
     description: '',
+    meetingType: 'casual', // 'regular' or 'casual'
+    casualMeetingType: 'hobby', // 'hobby' or 'discussion' (for casual meetings)
+    recurrenceDayOfWeek: 1, // 0-6 for Sunday-Saturday (for regular meetings)
+    recurrenceTime: '19:00', // HH:MM format (for regular meetings)
     meetingDate: '',
     startTime: '',
     endTime: '',
@@ -123,17 +127,23 @@ function CreateMeetingPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
+    // Basic field validation
     if (
       !formData.location ||
       !formData.hostIntroduction ||
       !formData.description ||
-      !formData.kakaoOpenchatLink ||
-      !formData.meetingDate ||
-      !formData.startTime ||
-      !formData.endTime
+      !formData.kakaoOpenchatLink
     ) {
       setError('모든 필수 필드를 입력해주세요')
       return
+    }
+
+    // Validate meeting type specific fields
+    if (formData.meetingType === 'casual') {
+      if (!formData.meetingDate || !formData.startTime || !formData.endTime) {
+        setError('즉흥 모임은 날짜와 시간을 입력해야 합니다')
+        return
+      }
     }
 
     // Validate Kakao Open Chat link format
@@ -142,31 +152,53 @@ function CreateMeetingPage() {
       return
     }
 
-    const startDatetime = new Date(
-      `${formData.meetingDate}T${formData.startTime}:00`
-    )
-    const endDatetime = new Date(
-      `${formData.meetingDate}T${formData.endTime}:00`
-    )
+    let startDatetime, endDatetime
 
-    if (startDatetime <= new Date()) {
-      setError('모임 시작 시간은 현재 시간 이후여야 합니다')
-      return
-    }
+    // For casual meetings, validate date/time
+    if (formData.meetingType === 'casual') {
+      startDatetime = new Date(
+        `${formData.meetingDate}T${formData.startTime}:00`
+      )
+      endDatetime = new Date(
+        `${formData.meetingDate}T${formData.endTime}:00`
+      )
 
-    if (endDatetime <= startDatetime) {
-      setError('모임 종료 시간은 시작 시간 이후여야 합니다')
-      return
+      if (startDatetime <= new Date()) {
+        setError('모임 시작 시간은 현재 시간 이후여야 합니다')
+        return
+      }
+
+      if (endDatetime <= startDatetime) {
+        setError('모임 종료 시간은 시작 시간 이후여야 합니다')
+        return
+      }
+    } else {
+      // For regular meetings, create placeholder datetime (will use recurrence info)
+      const now = new Date()
+      startDatetime = now
+      endDatetime = new Date(now.getTime() + 2 * 60 * 60 * 1000) // 2 hours later
     }
 
     // Confirmation dialog
     const purposeText = formData.purpose === 'coffee' ? '☕ 커피' : '🍺 술'
-    const dateText = new Date(formData.meetingDate).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-    const confirmMessage = `다음 내용으로 모임을 생성하시겠습니까?\n\n📍 장소: ${formData.location}\n📅 날짜: ${dateText}\n⏰ 시간: ${formData.startTime} - ${formData.endTime}\n${purposeText}\n👥 최대 인원: ${formData.maxParticipants}명\n\n※ 장소 정보가 정확한지 다시 한번 확인해주세요!`
+    const meetingTypeText = formData.meetingType === 'regular' ? '📅 정기 모임' : '⚡ 즉흥 모임'
+    let detailsText = ''
+
+    if (formData.meetingType === 'regular') {
+      const daysOfWeek = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+      const casualTypeText = formData.casualMeetingType === 'hobby' ? '🎨 취미' : '💬 토론'
+      detailsText = `${meetingTypeText}\n유형: ${casualTypeText}\n📅 매주 ${daysOfWeek[formData.recurrenceDayOfWeek]}\n⏰ ${formData.recurrenceTime}`
+    } else {
+      const dateText = new Date(formData.meetingDate).toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+      const casualTypeText = formData.casualMeetingType === 'hobby' ? '🎨 취미' : '💬 토론'
+      detailsText = `${meetingTypeText}\n유형: ${casualTypeText}\n📅 날짜: ${dateText}\n⏰ 시간: ${formData.startTime} - ${formData.endTime}`
+    }
+
+    const confirmMessage = `다음 내용으로 모임을 생성하시겠습니까?\n\n📍 장소: ${formData.location}\n${detailsText}\n${purposeText}\n👥 최대 인원: ${formData.maxParticipants}명\n\n※ 장소 정보가 정확한지 다시 한번 확인해주세요!`
 
     if (!window.confirm(confirmMessage)) {
       return
@@ -250,22 +282,32 @@ function CreateMeetingPage() {
         imageUrl = publicUrl
       }
 
-      const { data: meetingData, error: meetingError } = await supabase
+      // Prepare meeting data based on meeting type
+      const meetingData = {
+        host_id: user.id,
+        location: formData.location,
+        host_introduction: formData.hostIntroduction,
+        description: formData.description,
+        kakao_openchat_link: formData.kakaoOpenchatLink,
+        start_datetime: startDatetime.toISOString(),
+        end_datetime: endDatetime.toISOString(),
+        max_participants: parseInt(formData.maxParticipants),
+        purpose: formData.purpose,
+        image_url: imageUrl,
+        meeting_type: formData.meetingType,
+      }
+
+      // Add type-specific fields
+      if (formData.meetingType === 'regular') {
+        meetingData.recurrence_day_of_week = parseInt(formData.recurrenceDayOfWeek)
+        meetingData.recurrence_time = formData.recurrenceTime
+      } else {
+        meetingData.casual_meeting_type = formData.casualMeetingType
+      }
+
+      const { data: insertedMeeting, error: meetingError } = await supabase
         .from('offline_meetings')
-        .insert([
-          {
-            host_id: user.id,
-            location: formData.location,
-            host_introduction: formData.hostIntroduction,
-            description: formData.description,
-            kakao_openchat_link: formData.kakaoOpenchatLink,
-            start_datetime: startDatetime.toISOString(),
-            end_datetime: endDatetime.toISOString(),
-            max_participants: parseInt(formData.maxParticipants),
-            purpose: formData.purpose,
-            image_url: imageUrl,
-          },
-        ])
+        .insert([meetingData])
         .select('*')
         .single()
 
@@ -274,12 +316,12 @@ function CreateMeetingPage() {
       // Auto-join as host
       await supabase.from('meeting_participants').insert([
         {
-          meeting_id: meetingData.id,
+          meeting_id: insertedMeeting.id,
           user_id: user.id,
         },
       ])
 
-      navigate(`/meetings/${meetingData.id}`)
+      navigate(`/meetings/${insertedMeeting.id}`)
     } catch (err) {
       console.error('Error creating meeting:', err)
       setError(err.message || '모임 생성 중 오류가 발생했습니다')
@@ -412,33 +454,158 @@ function CreateMeetingPage() {
             )}
           </div>
 
-          <Input
-            label="날짜"
-            name="meetingDate"
-            type="date"
-            value={formData.meetingDate}
-            onChange={handleChange}
-            required
-          />
+          {/* Meeting Type Selection */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              모임 유형 <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <label className={`flex items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                formData.meetingType === 'casual'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}>
+                <input
+                  type="radio"
+                  name="meetingType"
+                  value="casual"
+                  checked={formData.meetingType === 'casual'}
+                  onChange={handleChange}
+                  className="mr-2"
+                />
+                <span className="font-medium">⚡ 즉흥 모임</span>
+              </label>
+              <label className={`flex items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                formData.meetingType === 'regular'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}>
+                <input
+                  type="radio"
+                  name="meetingType"
+                  value="regular"
+                  checked={formData.meetingType === 'regular'}
+                  onChange={handleChange}
+                  className="mr-2"
+                />
+                <span className="font-medium">📅 정기 모임</span>
+              </label>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="시작 시간"
-              name="startTime"
-              type="time"
-              value={formData.startTime}
-              onChange={handleChange}
-              required
-            />
-            <Input
-              label="종료 시간"
-              name="endTime"
-              type="time"
-              value={formData.endTime}
-              onChange={handleChange}
-              required
-            />
+            {/* Casual Meeting Type Selection (only for casual meetings) */}
+            {formData.meetingType === 'casual' && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  즉흥 모임 세부 유형 <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={`flex items-center justify-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    formData.casualMeetingType === 'hobby'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="casualMeetingType"
+                      value="hobby"
+                      checked={formData.casualMeetingType === 'hobby'}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <span className="font-medium">🎨 취미 모임</span>
+                  </label>
+                  <label className={`flex items-center justify-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    formData.casualMeetingType === 'discussion'
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="casualMeetingType"
+                      value="discussion"
+                      checked={formData.casualMeetingType === 'discussion'}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <span className="font-medium">💬 토론 모임</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Regular Meeting Recurrence (only for regular meetings) */}
+            {formData.meetingType === 'regular' && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    매주 반복 요일 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="recurrenceDayOfWeek"
+                    value={formData.recurrenceDayOfWeek}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={0}>일요일</option>
+                    <option value={1}>월요일</option>
+                    <option value={2}>화요일</option>
+                    <option value={3}>수요일</option>
+                    <option value={4}>목요일</option>
+                    <option value={5}>금요일</option>
+                    <option value={6}>토요일</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    정기 모임 시간 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    name="recurrenceTime"
+                    value={formData.recurrenceTime}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    매주 정해진 시간에 모임이 진행됩니다
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Date and Time (only for casual meetings) */}
+          {formData.meetingType === 'casual' && (
+            <>
+              <Input
+                label="날짜"
+                name="meetingDate"
+                type="date"
+                value={formData.meetingDate}
+                onChange={handleChange}
+                required
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="시작 시간"
+                  name="startTime"
+                  type="time"
+                  value={formData.startTime}
+                  onChange={handleChange}
+                  required
+                />
+                <Input
+                  label="종료 시간"
+                  name="endTime"
+                  type="time"
+                  value={formData.endTime}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -499,7 +666,11 @@ function CreateMeetingPage() {
             <ul className="text-sm text-blue-700 space-y-1">
               <li>• 모임을 만들면 자동으로 참가자로 등록됩니다</li>
               <li>• 익명 채팅방이 자동으로 생성됩니다</li>
-              <li>• D-1일 기준 최소 인원 미달 시 자동 취소됩니다</li>
+              {formData.meetingType === 'casual' ? (
+                <li>• D-1일 기준 최소 인원 미달 시 자동 취소됩니다</li>
+              ) : (
+                <li>• 정기 모임은 매주 지정된 요일과 시간에 진행됩니다</li>
+              )}
             </ul>
           </div>
 
