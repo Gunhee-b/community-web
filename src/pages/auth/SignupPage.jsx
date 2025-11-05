@@ -9,6 +9,7 @@ import {
 } from '../../utils/validation'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
+import SocialLoginButtons from '../../components/auth/SocialLoginButtons'
 
 function SignupPage() {
   const navigate = useNavigate()
@@ -87,6 +88,15 @@ function SignupPage() {
     }
   }
 
+  const handleSocialLoginSuccess = (result) => {
+    // Social login will redirect, so no need to navigate here
+    console.log('Social signup initiated:', result)
+  }
+
+  const handleSocialLoginError = (error) => {
+    setGeneralError(error.message)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
@@ -95,6 +105,25 @@ function SignupPage() {
           <p className="text-gray-600">커뮤니티에 가입하세요</p>
         </div>
 
+        {/* Social Login Buttons */}
+        <div className="mb-6">
+          <SocialLoginButtons
+            onSuccess={handleSocialLoginSuccess}
+            onError={handleSocialLoginError}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">또는</span>
+          </div>
+        </div>
+
+        {/* Traditional Signup Form */}
         <form onSubmit={handleSubmit}>
           <Input
             label="초대 코드"
