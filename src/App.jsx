@@ -1,4 +1,4 @@
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { App as CapApp } from '@capacitor/app'
@@ -76,6 +76,24 @@ function App() {
         // Refresh user data when app comes to foreground
         if (isActive && user?.id) {
           refreshUserData(user.id)
+        }
+      })
+
+      // Handle deep links (OAuth callbacks)
+      CapApp.addListener('appUrlOpen', (event) => {
+        console.log('Deep link received:', event.url)
+
+        // Parse the deep link URL
+        const url = new URL(event.url)
+        const path = url.pathname
+        const searchParams = url.search
+
+        // Navigate to the callback page with query parameters
+        if (path.includes('auth/callback')) {
+          // Use setTimeout to ensure navigation happens after render
+          setTimeout(() => {
+            window.location.href = `/auth/callback${searchParams}`
+          }, 100)
         }
       })
     } else {
