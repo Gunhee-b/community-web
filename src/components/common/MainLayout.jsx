@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useNotificationStore } from '../../store/notificationStore'
 import { supabase } from '../../lib/supabase'
 import NotificationBell from './NotificationBell'
 
@@ -11,8 +12,27 @@ function MainLayout() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  // Notification store
+  const loadDbNotifications = useNotificationStore((state) => state.loadDbNotifications)
+  const subscribeToNotifications = useNotificationStore((state) => state.subscribeToNotifications)
+
   // Check if user is logged in
   const isLoggedIn = !!user
+
+  // Initialize notification system for logged-in users
+  useEffect(() => {
+    if (user?.id) {
+      // Load notifications from database
+      loadDbNotifications(user.id)
+
+      // Subscribe to real-time notifications
+      const cleanup = subscribeToNotifications(user.id)
+
+      return () => {
+        cleanup()
+      }
+    }
+  }, [user?.id, loadDbNotifications, subscribeToNotifications])
 
   const handleLogout = () => {
     logout()

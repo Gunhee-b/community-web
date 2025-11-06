@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
@@ -81,11 +81,24 @@ function MeetingDetailPage() {
   }
 
   // Use custom hooks for chat and participants
-  const { chats, newMessage, setNewMessage, sending, sendMessage } = useMeetingChat(
-    id,
-    user,
-    isParticipant
-  )
+  const {
+    chats,
+    newMessage,
+    setNewMessage,
+    sending,
+    sendMessage,
+    typingUsers,
+    readReceipts,
+    handleTyping,
+    markMessagesAsRead,
+    uploadingImage
+  } = useMeetingChat(id, user, isParticipant)
+
+  // Chat UI state
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const chatContainerRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const { joinMeeting, confirmMeeting, unconfirmMeeting, leaveMeeting, markAttendance } =
     useMeetingParticipants(id, meeting, participants, user, refetchMeetingData)
@@ -448,9 +461,73 @@ function MeetingDetailPage() {
     }
   }
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [chats])
+
+  // Mark messages as read when viewing chat
+  useEffect(() => {
+    if (isParticipant && chats.length > 0) {
+      // Debounce marking as read
+      const timeoutId = setTimeout(() => {
+        markMessagesAsRead()
+      }, 1000)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [chats, isParticipant, markMessagesAsRead])
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedImage(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const handleSendMessage = async (e) => {
     e.preventDefault()
-    await sendMessage(newMessage)
+    if (!newMessage.trim() && !selectedImage) return
+
+    await sendMessage(newMessage, selectedImage)
+    handleRemoveImage()
+  }
+
+  const handleMessageInputChange = (e) => {
+    setNewMessage(e.target.value)
+    handleTyping()
+  }
+
+  // Group messages by date
+  const groupMessagesByDate = (messages) => {
+    const groups = {}
+    messages.forEach(chat => {
+      const date = new Date(chat.created_at).toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      })
+      if (!groups[date]) {
+        groups[date] = []
+      }
+      groups[date].push(chat)
+    })
+    return groups
   }
 
   if (loading) {
@@ -711,63 +788,195 @@ function MeetingDetailPage() {
 
           {/* Chat (only for logged in participants) */}
           {isLoggedIn && isParticipant && (
-            <Card>
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
-                모임 채팅방
+            <Card className="flex flex-col h-[600px]">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center justify-between">
+                <span>💬 모임 채팅방</span>
+                <span className="text-sm font-normal text-gray-500">
+                  {participants.length}명 참여중
+                </span>
               </h2>
-              <div className="h-96 overflow-y-auto mb-4 border rounded-lg p-4 bg-gray-50">
+
+              {/* Chat messages container */}
+              <div
+                ref={chatContainerRef}
+                className="flex-1 overflow-y-auto mb-4 p-4 bg-gradient-to-b from-blue-50 to-gray-50 rounded-lg space-y-1"
+              >
                 {chats.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400">
-                    <p>아직 메시지가 없습니다. 첫 메시지를 보내보세요!</p>
+                    <div className="text-center">
+                      <p className="text-lg mb-2">💬</p>
+                      <p>아직 메시지가 없습니다.</p>
+                      <p className="text-sm">첫 메시지를 보내보세요!</p>
+                    </div>
                   </div>
                 ) : (
                   <>
-                    {chats.map((chat) => {
-                      const isHost = chat.user_id === meeting.host_id
-                      return (
-                        <div
-                          key={chat.id}
-                          className={`mb-3 ${
-                            chat.user_id === user.id ? 'text-right' : 'text-left'
-                          }`}
-                        >
-                          <div
-                            className={`inline-block max-w-xs px-4 py-2 rounded-lg ${
-                              chat.user_id === user.id
-                                ? 'bg-blue-500 text-white'
-                                : isHost
-                                ? 'bg-yellow-100 text-gray-900 border-2 border-yellow-400'
-                                : 'bg-white text-gray-900'
-                            }`}
-                          >
-                            <div className="text-xs mb-1 opacity-75 font-medium">
-                              {isHost && '👑 '}
-                              {chat.user?.username || chat.anonymous_name}
-                              {isHost && ' (주최자)'}
-                            </div>
-                            <div className="mb-1">{chat.message}</div>
-                            <div className="text-xs opacity-60">
-                              {formatDistanceToNow(new Date(chat.created_at), {
-                                addSuffix: true,
-                                locale: ko,
-                              })}
-                            </div>
+                    {Object.entries(groupMessagesByDate(chats)).map(([date, messages]) => (
+                      <div key={date}>
+                        {/* Date separator */}
+                        <div className="flex items-center justify-center my-4">
+                          <div className="bg-gray-600 bg-opacity-70 text-white text-xs px-3 py-1 rounded-full">
+                            {date}
                           </div>
                         </div>
-                      )
-                    })}
+
+                        {/* Messages for this date */}
+                        {messages.map((chat, index) => {
+                          const isHost = chat.user_id === meeting.host_id
+                          const isOwnMessage = chat.user_id === user.id
+                          const showUsername = index === 0 || messages[index - 1].user_id !== chat.user_id
+                          const readCount = readReceipts[chat.id]?.filter(userId => userId !== chat.user_id).length || 0
+                          const totalParticipants = participants.length
+                          const unreadCount = !isOwnMessage ? 0 : Math.max(0, totalParticipants - readCount - 1)
+
+                          return (
+                            <div
+                              key={chat.id}
+                              className={`mb-2 flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className={`flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%] gap-2`}>
+                                {/* Message bubble */}
+                                <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                                  {/* Username (only for others' messages and when sender changes) */}
+                                  {!isOwnMessage && showUsername && (
+                                    <div className="text-xs font-medium text-gray-700 mb-1 px-1 flex items-center gap-1">
+                                      {isHost && <span className="text-yellow-500">👑</span>}
+                                      {chat.user?.username || chat.anonymous_name}
+                                    </div>
+                                  )}
+
+                                  <div
+                                    className={`px-4 py-2 rounded-2xl break-words ${
+                                      isOwnMessage
+                                        ? 'bg-yellow-300 text-gray-900 rounded-br-md'
+                                        : isHost
+                                        ? 'bg-white text-gray-900 border-2 border-yellow-300 rounded-bl-md'
+                                        : 'bg-white text-gray-900 rounded-bl-md'
+                                    } shadow-sm`}
+                                  >
+                                    {/* Image if present */}
+                                    {chat.image_url && (
+                                      <img
+                                        src={chat.image_url}
+                                        alt="첨부 이미지"
+                                        className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90"
+                                        onClick={() => window.open(chat.image_url, '_blank')}
+                                      />
+                                    )}
+
+                                    {/* Message text */}
+                                    {chat.message && chat.message !== '(사진)' && (
+                                      <div className="whitespace-pre-wrap">{chat.message}</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Time and read count */}
+                                <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} justify-end pb-1`}>
+                                  <div className="text-xs text-gray-500 whitespace-nowrap">
+                                    {new Date(chat.created_at).toLocaleTimeString('ko-KR', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
+                                  </div>
+                                  {isOwnMessage && unreadCount > 0 && (
+                                    <div className="text-xs font-semibold text-yellow-600">
+                                      {unreadCount}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+
+                    {/* Typing indicator */}
+                    {typingUsers.length > 0 && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-gray-500 text-sm">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                        </div>
+                        <span>{typingUsers.map(u => u.username).join(', ')}님이 입력 중...</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
-              <form onSubmit={handleSendMessage} className="flex space-x-2">
+
+              {/* Image preview */}
+              {imagePreview && (
+                <div className="mb-2 p-2 bg-gray-100 rounded-lg relative">
+                  <img src={imagePreview} alt="미리보기" className="h-20 rounded" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Message input */}
+              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                {/* Image upload button */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="이미지 첨부"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
+
+                {/* Text input */}
                 <input
                   type="text"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="메시지를 입력하세요"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={handleMessageInputChange}
+                  placeholder="메시지를 입력하세요..."
+                  disabled={sending || uploadingImage}
+                  className="flex-1 px-4 py-3 bg-white border-2 border-gray-200 rounded-full focus:outline-none focus:border-yellow-400 transition-colors"
                 />
-                <Button type="submit">전송</Button>
+
+                {/* Send button */}
+                <button
+                  type="submit"
+                  disabled={sending || uploadingImage || (!newMessage.trim() && !selectedImage)}
+                  className={`p-3 rounded-full transition-all ${
+                    (!newMessage.trim() && !selectedImage) || sending || uploadingImage
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-yellow-400 text-gray-900 hover:bg-yellow-500 active:scale-95'
+                  }`}
+                  title="전송"
+                >
+                  {sending || uploadingImage ? (
+                    <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                    </svg>
+                  )}
+                </button>
               </form>
             </Card>
           )}

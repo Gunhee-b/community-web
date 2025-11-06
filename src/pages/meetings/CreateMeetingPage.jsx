@@ -20,6 +20,7 @@ function CreateMeetingPage() {
     casualMeetingType: 'hobby', // 'hobby' or 'discussion' (for casual meetings)
     recurrenceDayOfWeek: 1, // 0-6 for Sunday-Saturday (for regular meetings)
     recurrenceTime: '19:00', // HH:MM format (for regular meetings)
+    recurrenceEndTime: '21:00', // End time for regular meetings
     meetingDate: '',
     startTime: '',
     endTime: '',
@@ -131,8 +132,7 @@ function CreateMeetingPage() {
     if (
       !formData.location ||
       !formData.hostIntroduction ||
-      !formData.description ||
-      !formData.kakaoOpenchatLink
+      !formData.description
     ) {
       setError('모든 필수 필드를 입력해주세요')
       return
@@ -146,8 +146,8 @@ function CreateMeetingPage() {
       }
     }
 
-    // Validate Kakao Open Chat link format
-    if (!formData.kakaoOpenchatLink.includes('open.kakao.com')) {
+    // Validate Kakao Open Chat link format (only if provided)
+    if (formData.kakaoOpenchatLink && !formData.kakaoOpenchatLink.includes('open.kakao.com')) {
       setError('올바른 카카오톡 오픈채팅 링크를 입력해주세요')
       return
     }
@@ -301,8 +301,12 @@ function CreateMeetingPage() {
       if (formData.meetingType === 'regular') {
         meetingData.recurrence_day_of_week = parseInt(formData.recurrenceDayOfWeek)
         meetingData.recurrence_time = formData.recurrenceTime
+        meetingData.recurrence_end_time = formData.recurrenceEndTime
+        // Mark regular meetings as templates
+        meetingData.is_template = true
       } else {
         meetingData.casual_meeting_type = formData.casualMeetingType
+        meetingData.is_template = false
       }
 
       const { data: insertedMeeting, error: meetingError } = await supabase
@@ -313,13 +317,46 @@ function CreateMeetingPage() {
 
       if (meetingError) throw meetingError
 
-      // Auto-join as host
-      await supabase.from('meeting_participants').insert([
-        {
-          meeting_id: insertedMeeting.id,
-          user_id: user.id,
-        },
-      ])
+      // For regular meetings (templates), generate the first week's meeting
+      if (formData.meetingType === 'regular') {
+        try {
+          const { data: firstWeekMeeting, error: generateError } = await supabase
+            .rpc('generate_meeting_from_template', {
+              p_template_id: insertedMeeting.id,
+              p_week_number: 1
+            })
+
+          if (generateError) {
+            console.error('Error generating first week meeting:', generateError)
+            throw new Error('첫 주차 모임 생성 중 오류가 발생했습니다')
+          }
+
+          // Auto-join host as participant in the first week's meeting
+          if (firstWeekMeeting) {
+            await supabase.from('meeting_participants').insert([
+              {
+                meeting_id: firstWeekMeeting,
+                user_id: user.id,
+              },
+            ])
+
+            // Navigate to the first week's meeting (not the template)
+            navigate(`/meetings/${firstWeekMeeting}`)
+            return
+          }
+        } catch (err) {
+          console.error('Error generating first week:', err)
+          // Fall through to template navigation if generation fails
+        }
+      } else {
+        // Auto-join as host for casual meetings
+        await supabase.from('meeting_participants').insert([
+          {
+            meeting_id: insertedMeeting.id,
+            user_id: user.id,
+          },
+        ])
+      }
 
       navigate(`/meetings/${insertedMeeting.id}`)
     } catch (err) {
@@ -380,7 +417,7 @@ function CreateMeetingPage() {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              카카오톡 오픈채팅 링크 <span className="text-red-500">*</span>
+              카카오톡 오픈채팅 링크 (선택사항)
             </label>
             <input
               type="url"
@@ -389,10 +426,9 @@ function CreateMeetingPage() {
               onChange={handleChange}
               placeholder="https://open.kakao.com/o/..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
             />
             <p className="mt-1 text-xs text-gray-500">
-              모임 참가자들이 입장할 카카오톡 오픈채팅방 링크를 입력해주세요
+              외부 카카오톡 오픈채팅방을 사용하려면 링크를 입력해주세요. 비워두면 앱 내 채팅만 사용합니다.
             </p>
           </div>
 
@@ -557,7 +593,7 @@ function CreateMeetingPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    정기 모임 시간 <span className="text-red-500">*</span>
+                    정기 모임 시작 시간 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="time"
@@ -565,9 +601,26 @@ function CreateMeetingPage() {
                     value={formData.recurrenceTime}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    매주 정해진 시간에 모임이 진행됩니다
+                    매주 정해진 시작 시간
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    정기 모임 종료 시간 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    name="recurrenceEndTime"
+                    value={formData.recurrenceEndTime}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    매주 정해진 종료 시간
                   </p>
                 </div>
               </div>

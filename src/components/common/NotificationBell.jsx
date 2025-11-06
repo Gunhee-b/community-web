@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../store/authStore'
 import { useNotificationStore } from '../../store/notificationStore'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -9,15 +10,19 @@ function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
 
-  const notifications = useNotificationStore((state) => state.notifications)
+  const user = useAuthStore((state) => state.user)
+  const getAllNotifications = useNotificationStore((state) => state.getAllNotifications)
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const markAsRead = useNotificationStore((state) => state.markAsRead)
   const markAllAsRead = useNotificationStore((state) => state.markAllAsRead)
   const deleteNotification = useNotificationStore((state) => state.deleteNotification)
   const clearAllNotifications = useNotificationStore((state) => state.clearAllNotifications)
 
+  // Get all notifications (both local and DB)
+  const allNotifications = getAllNotifications()
+
   // Filter to show only unread notifications
-  const unreadNotifications = notifications.filter((n) => !n.read)
+  const unreadNotifications = allNotifications.filter((n) => !n.read)
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -37,14 +42,15 @@ function NotificationBell() {
   }, [isOpen])
 
   const handleNotificationClick = (notification) => {
-    // Delete notification instead of marking as read
-    // This removes it from localStorage completely
-    deleteNotification(notification.id)
+    // Delete notification (works for both local and DB notifications)
+    deleteNotification(notification.id, user?.id)
     setIsOpen(false)
 
     // Navigate based on notification type
-    if (notification.type === 'chat' && notification.meetingId) {
-      navigate(`/meetings/${notification.meetingId}`)
+    if (notification.type === 'chat' && (notification.meetingId || notification.meeting_id)) {
+      navigate(`/meetings/${notification.meetingId || notification.meeting_id}`)
+    } else if (notification.type === 'meeting' && (notification.meetingId || notification.meeting_id)) {
+      navigate(`/meetings/${notification.meetingId || notification.meeting_id}`)
     }
   }
 
@@ -101,7 +107,7 @@ function NotificationBell() {
                 <button
                   onClick={() => {
                     if (window.confirm('모든 알림을 삭제하시겠습니까?')) {
-                      clearAllNotifications()
+                      clearAllNotifications(user?.id)
                     }
                   }}
                   className="text-sm text-red-600 hover:text-red-700"
@@ -139,7 +145,7 @@ function NotificationBell() {
                         {notification.message}
                       </p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {formatDistanceToNow(new Date(notification.timestamp), {
+                        {formatDistanceToNow(new Date(notification.created_at || notification.timestamp), {
                           addSuffix: true,
                           locale: ko,
                         })}
@@ -148,7 +154,7 @@ function NotificationBell() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        deleteNotification(notification.id)
+                        deleteNotification(notification.id, user?.id)
                       }}
                       className="flex-shrink-0 text-gray-400 hover:text-red-600"
                     >

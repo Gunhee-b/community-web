@@ -97,11 +97,9 @@ function AppRoutes() {
       />
       <Route path="/auth/callback" element={<CallbackPage />} />
 
-      {/* Public Home and Meetings Routes */}
+      {/* Public Home Route */}
       <Route path="/" element={<MainLayout />}>
         <Route index element={<HomePage />} />
-        <Route path="meetings" element={<MeetingsPage />} />
-        <Route path="meetings/:id" element={<MeetingDetailPage />} />
       </Route>
 
       {/* Protected Routes */}
@@ -121,7 +119,9 @@ function AppRoutes() {
         <Route path="vote/nominate" element={<NominatePage />} />
         <Route path="best-posts" element={<BestPostsPage />} />
 
-        {/* Meeting Create Route (requires login) */}
+        {/* Meeting Routes (requires login) */}
+        <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
         <Route path="meetings/create" element={<CreateMeetingPage />} />
 
         {/* Question Routes */}

@@ -35,10 +35,14 @@ function MeetingsPage() {
           host:users!host_id(username),
           participants:meeting_participants(count)
         `)
+        .eq('is_template', false)  // Exclude templates - only show actual meeting instances
 
       if (filter === 'regular') {
         // 정기 모임만 표시
-        query = query.eq('meeting_type', 'regular')
+        query = query
+          .eq('meeting_type', 'regular')
+          .gte('start_datetime', new Date().toISOString())
+          .in('status', ['recruiting', 'confirmed'])
       } else if (filter === 'casual') {
         // 즉흥 모임 중 모집 중인 것만
         query = query
