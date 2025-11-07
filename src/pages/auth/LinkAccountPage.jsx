@@ -57,7 +57,6 @@ function LinkAccountPage() {
     const names = {
       google: 'Google',
       kakao: '카카오',
-      facebook: 'Facebook',
       local: '일반 로그인',
     }
     return names[provider] || provider
@@ -69,8 +68,6 @@ function LinkAccountPage() {
         return '🔵'
       case 'kakao':
         return '💛'
-      case 'facebook':
-        return '🔷'
       case 'local':
         return '👤'
       default:
@@ -206,29 +203,13 @@ function LinkAccountPage() {
                   <span className="text-[#3C1E1E] font-medium">카카오 계정 연동</span>
                 </button>
               )}
-
-              {!isProviderLinked('facebook') && (
-                <button
-                  onClick={() =>
-                    linkSocialAccountToUser(user.id, 'facebook')
-                      .then(handleSocialLinkSuccess)
-                      .catch(handleSocialLinkError)
-                  }
-                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors"
-                >
-                  <span className="text-2xl">🔷</span>
-                  <span className="font-medium">Facebook 계정 연동</span>
-                </button>
-              )}
             </div>
 
-            {isProviderLinked('google') &&
-              isProviderLinked('kakao') &&
-              isProviderLinked('facebook') && (
-                <p className="text-center text-gray-500 py-4">
-                  모든 소셜 계정이 연동되었습니다
-                </p>
-              )}
+            {isProviderLinked('google') && isProviderLinked('kakao') && (
+              <p className="text-center text-gray-500 py-4">
+                모든 소셜 계정이 연동되었습니다
+              </p>
+            )}
           </div>
         </div>
 

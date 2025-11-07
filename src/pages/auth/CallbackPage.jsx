@@ -41,7 +41,7 @@ function CallbackPage() {
             throw new Error('카카오 인증 처리 실패')
           }
         }
-        // Handle Google/Facebook callback
+        // Handle Google callback
         else {
           const result = await handleOAuthCallback()
 

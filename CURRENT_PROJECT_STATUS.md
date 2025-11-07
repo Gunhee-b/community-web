@@ -159,8 +159,6 @@
   - Redirect URI 설정 필요: `http://localhost:3000/auth/callback`
   - KOE006 에러 해결 대기 중
 
-- ❌ Facebook 로그인 (미구현)
-
 ---
 
 ### 5. 모바일 앱 (Capacitor) (85% 완료)
@@ -383,7 +381,6 @@ Android:
 ```
 ✅ Google: 완료
 ⏳ Kakao: 설정 완료, 테스트 중
-❌ Facebook: 미구현
 ```
 
 #### 6. 네이티브 푸시 알림 미완성
@@ -621,7 +618,7 @@ Android 배포:          ████████░░░░░░░░░░�
 - ⚠️ App Store/Play Store 준비 부족
 
 ### 기회
-- 소셜 로그인 확장 (Kakao, Facebook)
+- 소셜 로그인 확장 (Kakao)
 - 네이티브 푸시 알림 완전 구현
 - 관리자 페이지에 정기 모임 템플릿 관리 UI 추가
 - 성능 최적화

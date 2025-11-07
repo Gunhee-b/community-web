@@ -65,15 +65,7 @@
 - [ ] 웹에서 Kakao 로그인 테스트
 - [ ] 모바일에서 Kakao 로그인 테스트
 
-### Phase 6: Facebook 로그인 연동 (추후 진행)
-- [ ] Facebook Developers에서 앱 생성
-- [ ] App ID, App Secret 발급
-- [ ] Supabase Dashboard에서 Facebook Provider 활성화
-- [ ] Valid OAuth Redirect URIs 등록
-- [ ] 웹에서 Facebook 로그인 테스트
-- [ ] 모바일에서 Facebook 로그인 테스트
-
-### Phase 7: 모바일 앱 테스트
+### Phase 6: 모바일 앱 테스트
 - [ ] iOS 앱에서 Google 로그인 테스트
 - [ ] Android 앱에서 Google 로그인 테스트
 - [ ] 딥링크 동작 확인
@@ -133,8 +125,7 @@
 
 ### 추후 진행
 1. **Kakao 로그인 연동** (원하는 시점에)
-2. **Facebook 로그인 연동** (원하는 시점에)
-3. **프로덕션 배포**
+2. **프로덕션 배포**
 
 ---
 
@@ -146,7 +137,6 @@
 | Google 로그인 연동 | 2025-01-31 | ✅ 완료 |
 | 웹 테스트 완료 | 2025-01-31 | 🔄 진행 중 |
 | Kakao 로그인 연동 | TBD | ⏳ 예정 |
-| Facebook 로그인 연동 | TBD | ⏳ 예정 |
 | 모바일 앱 테스트 | TBD | ⏳ 예정 |
 | 기존 사용자 전환 시작 | TBD | ⏳ 예정 |
 | 완전 전환 완료 | TBD | ⏳ 예정 |
@@ -175,7 +165,7 @@
 ## 💡 메모
 
 - Google 로그인은 웹에서 정상 작동 확인됨
-- Kakao, Facebook은 필요 시 연동 진행 예정
+- Kakao는 필요 시 연동 진행 예정
 - 모든 코드는 구현 완료 상태
 - 추가 Provider 연동 시 설정만 추가하면 즉시 사용 가능
 

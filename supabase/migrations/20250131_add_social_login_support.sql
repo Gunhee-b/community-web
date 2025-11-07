@@ -4,7 +4,7 @@
 -- Step 1: Add new columns to users table
 ALTER TABLE users
 ADD COLUMN email TEXT UNIQUE,
-ADD COLUMN provider TEXT DEFAULT 'local', -- 'local', 'google', 'kakao', 'facebook'
+ADD COLUMN provider TEXT DEFAULT 'local', -- 'local', 'google', 'kakao'
 ADD COLUMN provider_id TEXT,
 ADD COLUMN avatar_url TEXT,
 ADD COLUMN nickname_change_count INTEGER DEFAULT 0,

@@ -38,27 +38,6 @@ export const signInWithGoogle = async () => {
 }
 
 /**
- * Sign in with Facebook
- */
-export const signInWithFacebook = async () => {
-  try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: {
-        redirectTo: getRedirectUrl(),
-        scopes: 'email,public_profile',
-      },
-    })
-
-    if (error) throw error
-    return { success: true, data }
-  } catch (error) {
-    console.error('Facebook sign-in error:', error)
-    throw new Error(error.message || '페이스북 로그인 중 오류가 발생했습니다')
-  }
-}
-
-/**
  * Sign in with Kakao (Custom implementation)
  * Note: Kakao requires custom OAuth implementation as it's not natively supported by Supabase
  */

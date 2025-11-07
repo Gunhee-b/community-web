@@ -15,16 +15,15 @@
 | 데이터베이스 마이그레이션 | ✅ 완료 | SQL 실행 완료 |
 | Google 로그인 | ✅ 테스트 성공 | 웹에서 동작 확인 |
 | Kakao 로그인 | ⏳ 대기 중 | 추후 연동 예정 |
-| Facebook 로그인 | ⏳ 대기 중 | 추후 연동 예정 |
 | 빌드 | ✅ 성공 | @capacitor/browser 설치 완료 |
 
 ---
 
 ## 📋 작업 요약
 
-통찰방 프로젝트에 **소셜 로그인(구글, 카카오, 페이스북)** 기능을 추가하고, 기존 username/password 인증과 병행 운영할 수 있도록 구현 완료했습니다.
+통찰방 프로젝트에 **소셜 로그인(구글, 카카오)** 기능을 추가하고, 기존 username/password 인증과 병행 운영할 수 있도록 구현 완료했습니다.
 
-**현재 Google 로그인이 정상 작동 중**이며, 카카오와 페이스북은 추후 연동 예정입니다.
+**현재 Google 로그인이 정상 작동 중**이며, 카카오는 추후 연동 예정입니다.
 
 ---
 
@@ -52,7 +51,6 @@
 **파일**: `src/utils/socialAuth.js`
 
 - ✅ Google OAuth 로그인 함수
-- ✅ Facebook OAuth 로그인 함수
 - ✅ Kakao OAuth 로그인 함수 (커스텀 구현)
 - ✅ OAuth 콜백 처리 함수
 - ✅ 소셜 계정 연동 함수
@@ -66,7 +64,6 @@
 
 - ✅ Google 로그인 버튼 (Google 브랜드 컬러/로고)
 - ✅ Kakao 로그인 버튼 (Kakao 브랜드 컬러/로고)
-- ✅ Facebook 로그인 버튼 (Facebook 브랜드 컬러/로고)
 - ✅ 로딩 상태 표시
 - ✅ 에러 핸들링
 - ✅ 반응형 디자인
@@ -132,7 +129,6 @@
 
 - ✅ Supabase Dashboard 설정 가이드
 - ✅ Google Cloud Console 설정 가이드
-- ✅ Facebook Developers 설정 가이드
 - ✅ Kakao Developers 설정 가이드
 - ✅ 환경 변수 설정
 - ✅ 데이터베이스 마이그레이션 가이드
@@ -185,10 +181,6 @@
    VITE_KAKAO_CLIENT_ID=your-kakao-rest-api-key
    VITE_KAKAO_CLIENT_SECRET=your-kakao-client-secret
    ```
-
-2. **Facebook 소셜 앱 생성**:
-   - Facebook Developers에서 앱 생성
-   - Supabase Dashboard에서 Facebook Provider 활성화
 
 ### 2. 개발
 
@@ -257,7 +249,6 @@ SELECT
 
 - [x] Google 로그인 ✅ **테스트 완료**
 - [ ] Kakao 로그인 (추후 연동 예정)
-- [ ] Facebook 로그인 (추후 연동 예정)
 - [ ] 기존 계정 로그인 (username/password)
 - [ ] 기존 계정 소셜 연동
 - [ ] 로그아웃
@@ -267,7 +258,6 @@ SELECT
 
 - [ ] Google 로그인
 - [ ] Kakao 로그인 (추후 연동 예정)
-- [ ] Facebook 로그인 (추후 연동 예정)
 - [ ] 딥링크 리다이렉트 (`ingk://auth/callback`)
 - [ ] 앱 재시작 시 세션 유지
 
@@ -275,7 +265,6 @@ SELECT
 
 - [ ] Google 로그인
 - [ ] Kakao 로그인 (추후 연동 예정)
-- [ ] Facebook 로그인 (추후 연동 예정)
 - [ ] 딥링크 리다이렉트
 - [ ] 앱 재시작 시 세션 유지
 

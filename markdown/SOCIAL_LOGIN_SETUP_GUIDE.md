@@ -1,7 +1,7 @@
 # 소셜 로그인 설정 가이드
 
 **최종 업데이트**: 2025-01-31
-**목적**: 통찰방 프로젝트에 소셜 로그인(구글, 카카오, 페이스북) 추가 및 기존 인증과 병행 운영
+**목적**: 통찰방 프로젝트에 소셜 로그인(구글, 카카오) 추가 및 기존 인증과 병행 운영
 
 ---
 
@@ -11,10 +11,9 @@
 - ✅ **데이터베이스 마이그레이션**: 실행 완료
 - ✅ **Google 로그인**: 연동 및 테스트 완료
 - ⏳ **Kakao 로그인**: 추후 연동 예정
-- ⏳ **Facebook 로그인**: 추후 연동 예정
 - ✅ **빌드**: 성공
 
-**참고**: 이 가이드는 Google, Kakao, Facebook 모두를 설명하지만, 현재는 Google만 연동된 상태입니다.
+**참고**: 이 가이드는 Google과 Kakao 로그인을 설명합니다. Facebook 로그인은 제거되었습니다.
 
 ---
 
@@ -46,7 +45,6 @@
 ### 지원 소셜 로그인
 - ✅ Google
 - ✅ Kakao
-- ✅ Facebook (Meta)
 
 ---
 
@@ -71,14 +69,7 @@
 https://[YOUR-PROJECT-REF].supabase.co/auth/v1/callback
 ```
 
-### 3. Facebook Provider 활성화
-
-1. **Enable Facebook Provider** 토글 ON
-2. 필요한 정보:
-   - **App ID**: Facebook Developers에서 발급
-   - **App Secret**: Facebook Developers에서 발급
-
-### 4. Kakao Provider (커스텀 구현)
+### 3. Kakao Provider (커스텀 구현)
 
 Supabase는 Kakao를 기본 지원하지 않으므로 커스텀 OAuth 플로우 사용:
 - REST API 사용
@@ -107,29 +98,6 @@ Supabase는 Kakao를 기본 지원하지 않으므로 커스텀 OAuth 플로우 
 **추가 설정**:
 - OAuth consent screen 설정 (앱 이름, 로고, 지원 이메일)
 - Scopes: `email`, `profile`
-
-### Facebook Developers
-
-1. [Facebook Developers](https://developers.facebook.com) 접속
-2. **My Apps** → **Create App**
-3. App type: **Consumer**
-4. **Settings** → **Basic**
-   - App ID 확인
-   - App Secret 확인
-5. **Facebook Login** → **Settings**
-6. **Valid OAuth Redirect URIs** 추가:
-   ```
-   https://[YOUR-PROJECT-REF].supabase.co/auth/v1/callback
-   http://localhost:5173/auth/callback (개발용)
-   [YOUR-PRODUCTION-DOMAIN]/auth/callback
-   ingk://auth/callback (모바일)
-   ```
-7. App을 **Live** 모드로 전환 (개발 완료 후)
-
-**추가 설정**:
-- App Review: `email`, `public_profile` 권한 요청
-- Privacy Policy URL 등록 (필수)
-- Terms of Service URL 등록 (권장)
 
 ### Kakao Developers
 
@@ -175,9 +143,6 @@ VITE_SUPABASE_URL=https://[YOUR-PROJECT-REF].supabase.co
 VITE_SUPABASE_ANON_KEY=[YOUR-ANON-KEY]
 
 # Google OAuth (Supabase Provider 사용)
-# Supabase Dashboard에 직접 입력하므로 여기서는 불필요
-
-# Facebook OAuth (Supabase Provider 사용)
 # Supabase Dashboard에 직접 입력하므로 여기서는 불필요
 
 # Kakao OAuth (커스텀 구현)
@@ -451,7 +416,7 @@ ORDER BY created_at;
 **원인**: OAuth Provider에 Redirect URI가 등록되지 않음
 
 **해결**:
-1. Google/Facebook/Kakao Console에서 Redirect URI 확인
+1. Google/Kakao Console에서 Redirect URI 확인
 2. Supabase에서 제공하는 정확한 URI 사용:
    ```
    https://[YOUR-PROJECT-REF].supabase.co/auth/v1/callback
@@ -534,7 +499,6 @@ npx cap sync android
 ### 문서
 - [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)
 - [Google OAuth 2.0](https://developers.google.com/identity/protocols/oauth2)
-- [Facebook Login Documentation](https://developers.facebook.com/docs/facebook-login)
 - [Kakao Login REST API](https://developers.kakao.com/docs/latest/ko/kakaologin/rest-api)
 - [Capacitor Deep Links](https://capacitorjs.com/docs/guides/deep-links)
 
