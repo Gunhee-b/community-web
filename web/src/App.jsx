@@ -11,10 +11,12 @@ import { supabase } from './lib/supabase'
 import PWAInstallPrompt from './components/common/PWAInstallPrompt'
 import AppUrlListener from './components/common/AppUrlListener'
 import { initPushNotifications } from './utils/notifications'
+import Loading from './components/common/Loading'
 
 function App() {
   const user = useAuthStore((state) => state.user)
   const session = useAuthStore((state) => state.session)
+  const isLoading = useAuthStore((state) => state.isLoading)
   const setUser = useAuthStore((state) => state.setUser)
   const initialize = useAuthStore((state) => state.initialize)
 
@@ -140,6 +142,15 @@ function App() {
       console.error('Error refreshing user data:', error)
       // Don't clear user on unexpected errors - keep persisted session
     }
+  }
+
+  // Show loading screen while initializing auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loading />
+      </div>
+    )
   }
 
   return (

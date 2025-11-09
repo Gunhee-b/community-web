@@ -211,6 +211,14 @@ export const syncSocialUser = async (authUser) => {
     const username = authUser.user_metadata.full_name || authUser.user_metadata.name
     const avatarUrl = authUser.user_metadata.avatar_url || authUser.user_metadata.picture
 
+    console.log('Syncing social user with params:', {
+      provider,
+      providerId,
+      email,
+      username,
+      avatarUrl
+    })
+
     const { data, error } = await supabase.rpc('find_or_create_social_user', {
       p_provider: provider,
       p_provider_user_id: providerId,
@@ -220,12 +228,24 @@ export const syncSocialUser = async (authUser) => {
       p_display_name: username,
     })
 
-    if (error) throw error
+    console.log('RPC Response:', { data, error })
+
+    if (error) {
+      console.error('RPC Error Details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      throw error
+    }
 
     if (!data.success) {
+      console.error('User sync failed:', data.error)
       throw new Error(data.error || 'Failed to sync user')
     }
 
+    console.log('User sync successful:', data)
     return data
   } catch (error) {
     console.error('Sync social user error:', error)

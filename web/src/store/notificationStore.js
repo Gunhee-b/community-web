@@ -24,7 +24,16 @@ export const useNotificationStore = create(
             .order('created_at', { ascending: false })
             .limit(50)
 
-          if (error) throw error
+          if (error) {
+            console.error('Error loading notifications:', error)
+            // Don't throw, just log the error and continue
+            set({
+              dbNotifications: [],
+              unreadCount: 0,
+              isLoadingDb: false
+            })
+            return
+          }
 
           const unreadCount = data?.filter(n => !n.read).length || 0
 
@@ -35,7 +44,11 @@ export const useNotificationStore = create(
           })
         } catch (error) {
           console.error('Error loading notifications:', error)
-          set({ isLoadingDb: false })
+          set({
+            dbNotifications: [],
+            unreadCount: 0,
+            isLoadingDb: false
+          })
         }
       },
 

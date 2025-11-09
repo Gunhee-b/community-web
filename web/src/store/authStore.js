@@ -74,7 +74,7 @@ export const useAuthStore = create(
                 .from('users')
                 .select('*')
                 .eq('email', authUser.email)
-                .single()
+                .maybeSingle()
 
               if (!error && userData) {
                 set({
@@ -84,6 +84,9 @@ export const useAuthStore = create(
                   isLoading: false,
                 })
                 return
+              } else if (error) {
+                console.error('Error fetching user data:', error)
+                // Continue to check local auth instead of blocking
               }
             }
           }
@@ -100,7 +103,8 @@ export const useAuthStore = create(
           set({ user: null, session: null, authType: null, isLoading: false })
         } catch (error) {
           console.error('Auth initialization error:', error)
-          set({ user: null, session: null, authType: null, isLoading: false })
+          // Don't block the app, just set loading to false
+          set({ isLoading: false })
         }
       },
 
