@@ -57,7 +57,31 @@ export const useAuthStore = create(
         set({ isLoading: true })
 
         try {
-          // Check for Supabase Auth session
+          // First check if we have a valid persisted session
+          const storedState = get()
+
+          // If we have a local auth session, use it immediately
+          if (storedState.user && storedState.authType === 'local') {
+            // Check if session is still valid
+            if (storedState.session?.expires_at > Date.now()) {
+              console.log('Using valid local auth session')
+              set({ isLoading: false })
+              return
+            }
+          }
+
+          // If we have a social auth session, check if it's still valid
+          if (storedState.user && storedState.authType === 'social' && storedState.session) {
+            // Check if session is still valid
+            if (storedState.session.expires_at && storedState.session.expires_at * 1000 > Date.now()) {
+              console.log('Using valid social auth session from storage')
+              set({ isLoading: false })
+              return
+            }
+          }
+
+          // Only check Supabase Auth if we don't have a valid stored session
+          console.log('No valid stored session, checking Supabase Auth...')
           const {
             data: { session },
           } = await supabase.auth.getSession()
@@ -86,20 +110,13 @@ export const useAuthStore = create(
                 return
               } else if (error) {
                 console.error('Error fetching user data:', error)
-                // Continue to check local auth instead of blocking
+                // Continue to clear session
               }
             }
           }
 
-          // If no social auth session, check for local auth in storage
-          const storedState = get()
-          if (storedState.user && storedState.authType === 'local') {
-            // Local auth session exists in storage
-            set({ isLoading: false })
-            return
-          }
-
-          // No valid session
+          // No valid session found
+          console.log('No valid session, clearing auth state')
           set({ user: null, session: null, authType: null, isLoading: false })
         } catch (error) {
           console.error('Auth initialization error:', error)

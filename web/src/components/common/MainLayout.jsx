@@ -32,7 +32,8 @@ function MainLayout() {
         cleanup()
       }
     }
-  }, [user?.id, loadDbNotifications, subscribeToNotifications])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const handleLogout = () => {
     logout()

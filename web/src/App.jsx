@@ -26,20 +26,8 @@ function App() {
     initialize()
   }, [])
 
+  // Platform-specific setup (run once on mount)
   useEffect(() => {
-    // Check if session is expired and clear it
-    if (session && session.expires_at < Date.now()) {
-      console.log('Session expired, clearing user data')
-      setUser(null)
-      return
-    }
-
-    // If we have a persisted user, verify with database
-    if (user?.id) {
-      refreshUserData(user.id)
-    }
-
-    // Native platform specific setup
     const isNative = Capacitor.isNativePlatform()
 
     if (isNative) {
@@ -67,24 +55,7 @@ function App() {
         }
       })
 
-      // Initialize push notifications if user is logged in
-      if (user?.id) {
-        initPushNotifications(user.id).catch((err) => {
-          console.error('Error initializing push notifications:', err)
-        })
-      }
-
-      // Handle app state changes
-      CapApp.addListener('appStateChange', ({ isActive }) => {
-        console.log('App state changed. Is active:', isActive)
-        // Refresh user data when app comes to foreground
-        if (isActive && user?.id) {
-          refreshUserData(user.id)
-        }
-      })
-
       // Deep link handling is now done in AppUrlListener component
-      // (which has access to React Router's navigate)
     } else {
       // Register service worker update handler for web
       if ('serviceWorker' in navigator) {
@@ -111,6 +82,31 @@ function App() {
       }
     }
   }, [])
+
+  // Handle user-specific setup when user changes
+  useEffect(() => {
+    const isNative = Capacitor.isNativePlatform()
+
+    if (isNative && user?.id) {
+      // Initialize push notifications
+      initPushNotifications(user.id).catch((err) => {
+        console.error('Error initializing push notifications:', err)
+      })
+
+      // Handle app state changes
+      const appStateListener = CapApp.addListener('appStateChange', ({ isActive }) => {
+        console.log('App state changed. Is active:', isActive)
+        // Refresh user data when app comes to foreground
+        if (isActive && user?.id) {
+          refreshUserData(user.id)
+        }
+      })
+
+      return () => {
+        appStateListener.remove()
+      }
+    }
+  }, [user?.id])
 
   const refreshUserData = async (userId) => {
     try {
