@@ -9,8 +9,11 @@ const getRedirectUrl = () => {
     // For mobile apps, use custom scheme
     return 'ingk://auth/callback'
   }
+
   // For web, use current origin
-  return `${window.location.origin}/auth/callback`
+  const origin = window.location.origin
+  console.log('OAuth Redirect URL:', `${origin}/auth/callback`)
+  return `${origin}/auth/callback`
 }
 
 /**
@@ -76,15 +79,31 @@ export const signInWithKakao = async () => {
  */
 export const handleOAuthCallback = async () => {
   try {
-    const { data, error } = await supabase.auth.getSession()
+    console.log('Processing OAuth callback...')
 
-    if (error) throw error
+    // First try to exchange the code for session
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
 
-    if (data?.session) {
+    console.log('Session data:', sessionData)
+    console.log('Session error:', sessionError)
+
+    if (sessionError) {
+      console.error('Session error details:', sessionError)
+      throw sessionError
+    }
+
+    if (sessionData?.session) {
       // Get user info from Supabase auth
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+      if (userError) {
+        console.error('User fetch error:', userError)
+        throw userError
+      }
 
       if (!user) throw new Error('User not found')
+
+      console.log('User authenticated:', user.email)
 
       // Sync with our users table
       const result = await syncSocialUser(user)
@@ -92,11 +111,12 @@ export const handleOAuthCallback = async () => {
       return {
         success: true,
         user: result.user,
-        session: data.session,
+        session: sessionData.session,
         isNew: result.is_new,
       }
     }
 
+    console.warn('No session found in callback')
     return { success: false, error: 'No session found' }
   } catch (error) {
     console.error('OAuth callback error:', error)
@@ -112,6 +132,9 @@ export const handleKakaoCallback = async (code) => {
     const KAKAO_CLIENT_ID = import.meta.env.VITE_KAKAO_CLIENT_ID
     const KAKAO_CLIENT_SECRET = import.meta.env.VITE_KAKAO_CLIENT_SECRET
     const REDIRECT_URI = getRedirectUrl()
+
+    console.log('Kakao callback - Redirect URI:', REDIRECT_URI)
+    console.log('Kakao callback - Code:', code)
 
     // Exchange code for token
     const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
@@ -130,8 +153,11 @@ export const handleKakaoCallback = async (code) => {
 
     const tokenData = await tokenResponse.json()
 
+    console.log('Kakao token response:', tokenData)
+
     if (!tokenResponse.ok) {
-      throw new Error(tokenData.error_description || 'Failed to get Kakao token')
+      console.error('Kakao token error:', tokenData)
+      throw new Error(tokenData.error_description || tokenData.error || 'Failed to get Kakao token')
     }
 
     // Get user info
