@@ -25,6 +25,7 @@ export const signInWithGoogle = async () => {
       provider: 'google',
       options: {
         redirectTo: getRedirectUrl(),
+        skipBrowserRedirect: false,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -101,26 +102,36 @@ export const handleOAuthCallback = async () => {
         throw userError
       }
 
-      if (!user) throw new Error('User not found')
+      if (!user) {
+        console.error('No user found in session')
+        throw new Error('User not found')
+      }
 
       console.log('User authenticated:', user.email)
 
       // Sync with our users table
-      const result = await syncSocialUser(user)
+      try {
+        const result = await syncSocialUser(user)
 
-      return {
-        success: true,
-        user: result.user,
-        session: sessionData.session,
-        isNew: result.is_new,
+        console.log('Sync result:', result)
+
+        return {
+          success: true,
+          user: result.user,
+          session: sessionData.session,
+          isNew: result.is_new,
+        }
+      } catch (syncError) {
+        console.error('User sync failed:', syncError)
+        throw new Error(`사용자 정보 동기화 실패: ${syncError.message}`)
       }
     }
 
     console.warn('No session found in callback')
-    return { success: false, error: 'No session found' }
+    throw new Error('인증 세션을 찾을 수 없습니다. 다시 시도해주세요.')
   } catch (error) {
     console.error('OAuth callback error:', error)
-    throw new Error(error.message || '인증 처리 중 오류가 발생했습니다')
+    throw error
   }
 }
 

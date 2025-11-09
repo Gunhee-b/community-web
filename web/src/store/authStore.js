@@ -145,23 +145,9 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   const store = useAuthStore.getState()
 
   if (event === 'SIGNED_IN' && session) {
-    // Fetch user data from our users table
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    if (authUser) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', authUser.email)
-        .single()
-
-      if (userData) {
-        store.setUser(userData)
-        store.setSession(session)
-      }
-    }
+    // For social login, the OAuthHandler component will handle user sync
+    // Don't try to fetch user here as it might not exist yet
+    console.log('User signed in, OAuthHandler will handle sync')
   } else if (event === 'SIGNED_OUT') {
     // Only clear if this was a social auth session
     if (store.authType === 'social') {
@@ -169,5 +155,9 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     }
   } else if (event === 'TOKEN_REFRESHED' && session) {
     store.setSession(session)
+  } else if (event === 'INITIAL_SESSION' && session) {
+    // Don't fetch user data here, let OAuthHandler handle it
+    // This prevents 406 errors from RLS/API issues
+    console.log('Initial session detected, OAuthHandler will process if needed')
   }
 })

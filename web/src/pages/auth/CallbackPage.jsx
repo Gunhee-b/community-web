@@ -14,6 +14,10 @@ function CallbackPage() {
   useEffect(() => {
     const processCallback = async () => {
       try {
+        console.log('CallbackPage mounted')
+        console.log('Search params:', Object.fromEntries(searchParams))
+        console.log('Hash:', window.location.hash)
+
         const state = searchParams.get('state')
         const code = searchParams.get('code')
         const errorParam = searchParams.get('error')
@@ -30,13 +34,8 @@ function CallbackPage() {
           if (result.success) {
             setUser(result.user)
 
-            if (result.isNew) {
-              // New user - redirect to welcome/profile completion
-              navigate('/welcome', { state: { isNew: true } })
-            } else {
-              // Existing user - redirect to home
-              navigate('/')
-            }
+            // Always redirect to home for now (welcome page doesn't exist)
+            navigate('/')
           } else {
             throw new Error('카카오 인증 처리 실패')
           }
@@ -49,13 +48,8 @@ function CallbackPage() {
             setUser(result.user)
             setSession(result.session)
 
-            if (result.isNew) {
-              // New user - redirect to welcome/profile completion
-              navigate('/welcome', { state: { isNew: true } })
-            } else {
-              // Existing user - redirect to home
-              navigate('/')
-            }
+            // Always redirect to home (welcome page doesn't exist)
+            navigate('/')
           } else {
             throw new Error('인증 처리 실패')
           }

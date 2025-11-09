@@ -10,6 +10,7 @@ import { useAuthStore } from './store/authStore'
 import { supabase } from './lib/supabase'
 import PWAInstallPrompt from './components/common/PWAInstallPrompt'
 import AppUrlListener from './components/common/AppUrlListener'
+import OAuthHandler from './components/common/OAuthHandler'
 import { initPushNotifications } from './utils/notifications'
 import Loading from './components/common/Loading'
 
@@ -157,6 +158,7 @@ function App() {
     <BrowserRouter>
       <Toaster />
       <AppUrlListener />
+      <OAuthHandler />
       <AppRoutes />
       {user && <PWAInstallPrompt />}
     </BrowserRouter>
