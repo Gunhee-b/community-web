@@ -80,40 +80,42 @@ export const signInWithKakao = async () => {
  */
 export const handleOAuthCallback = async () => {
   try {
-    console.log('Processing OAuth callback...')
+    console.log('🔄 handleOAuthCallback: Starting...')
 
     // First try to exchange the code for session
+    console.log('📡 Getting Supabase session...')
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
 
-    console.log('Session data:', sessionData)
-    console.log('Session error:', sessionError)
-
     if (sessionError) {
-      console.error('Session error details:', sessionError)
+      console.error('❌ Session error:', sessionError)
       throw sessionError
     }
 
+    console.log('✅ Session exists:', !!sessionData?.session)
+
     if (sessionData?.session) {
       // Get user info from Supabase auth
+      console.log('👤 Getting auth user...')
       const { data: { user }, error: userError } = await supabase.auth.getUser()
 
       if (userError) {
-        console.error('User fetch error:', userError)
+        console.error('❌ User fetch error:', userError)
         throw userError
       }
 
       if (!user) {
-        console.error('No user found in session')
+        console.error('❌ No user in session')
         throw new Error('User not found')
       }
 
-      console.log('User authenticated:', user.email)
+      console.log('✅ Auth user exists:', user.email)
 
       // Sync with our users table
       try {
+        console.log('🔄 Syncing user to database...')
         const result = await syncSocialUser(user)
 
-        console.log('Sync result:', result)
+        console.log('✅ Sync successful, user created')
 
         return {
           success: true,
@@ -122,15 +124,21 @@ export const handleOAuthCallback = async () => {
           isNew: result.is_new,
         }
       } catch (syncError) {
-        console.error('User sync failed:', syncError)
+        console.error('❌ User sync failed:', syncError)
+        console.error('❌ Sync error details:', {
+          message: syncError.message,
+          code: syncError.code,
+          details: syncError.details,
+          hint: syncError.hint
+        })
         throw new Error(`사용자 정보 동기화 실패: ${syncError.message}`)
       }
     }
 
-    console.warn('No session found in callback')
+    console.warn('⚠️ No session found in callback')
     throw new Error('인증 세션을 찾을 수 없습니다. 다시 시도해주세요.')
   } catch (error) {
-    console.error('OAuth callback error:', error)
+    console.error('❌ OAuth callback error:', error)
     throw error
   }
 }
