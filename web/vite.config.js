@@ -9,7 +9,10 @@ export default defineConfig({
         '@capacitor/app',
         '@capacitor/status-bar',
         '@capacitor/splash-screen',
-        '@capacitor/core'
+        '@capacitor/core',
+        '@capacitor/preferences',
+        '@capacitor/camera',
+        '@capacitor/push-notifications'
       ]
     }
   },
