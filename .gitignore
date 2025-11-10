@@ -1,0 +1,51 @@
+# Environment variables (root level)
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Build artifacts
+node_modules/
+dist/
+build/
+
+# Documentation generated files
+*.pdf
+*.doc
+*.docx
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Sensitive files
+*.pem
+*.key
+*.cert
+credentials.json
+secrets.json
+config.local.*
