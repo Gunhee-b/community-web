@@ -1,17 +1,12 @@
 import { BrowserRouter } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { App as CapApp } from '@capacitor/app'
-import { StatusBar, Style } from '@capacitor/status-bar'
-import { SplashScreen } from '@capacitor/splash-screen'
-import { Capacitor } from '@capacitor/core'
 import AppRoutes from './routes'
 import { useAuthStore } from './store/authStore'
 import { supabase } from './lib/supabase'
 import PWAInstallPrompt from './components/common/PWAInstallPrompt'
 import AppUrlListener from './components/common/AppUrlListener'
 import OAuthHandler from './components/common/OAuthHandler'
-import { initPushNotifications } from './utils/notifications'
 import Loading from './components/common/Loading'
 
 function App() {
@@ -28,84 +23,120 @@ function App() {
 
   // Platform-specific setup (run once on mount)
   useEffect(() => {
-    const isNative = Capacitor.isNativePlatform()
-
-    if (isNative) {
-      // Hide splash screen after app is loaded
-      SplashScreen.hide()
-
-      // Set status bar style
-      StatusBar.setStyle({ style: Style.Light }).catch((err) => {
-        console.error('Error setting status bar style:', err)
-      })
-
-      // Set status bar background color (Android only)
-      if (Capacitor.getPlatform() === 'android') {
-        StatusBar.setBackgroundColor({ color: '#ffffff' }).catch((err) => {
-          console.error('Error setting status bar color:', err)
-        })
+    const setupPlatform = async () => {
+      // Check if we're in a native environment
+      let isNative = false
+      try {
+        const { Capacitor } = await import('@capacitor/core')
+        isNative = Capacitor.isNativePlatform()
+      } catch {
+        // Not in native environment, continue with web setup
+        isNative = false
       }
 
-      // Handle Android back button
-      CapApp.addListener('backButton', ({ canGoBack }) => {
-        if (!canGoBack || window.location.pathname === '/') {
-          CapApp.exitApp()
-        } else {
-          window.history.back()
-        }
-      })
+      if (isNative) {
+        // Dynamic imports for native modules
+        const [
+          { App: CapApp },
+          { StatusBar, Style },
+          { SplashScreen }
+        ] = await Promise.all([
+          import('@capacitor/app'),
+          import('@capacitor/status-bar'),
+          import('@capacitor/splash-screen')
+        ])
 
-      // Deep link handling is now done in AppUrlListener component
-    } else {
-      // Register service worker update handler for web
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then((registration) => {
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New content is available, notify user
-                if (confirm('새로운 버전이 있습니다. 업데이트하시겠습니까?')) {
-                  window.location.reload()
+        const { Capacitor } = await import('@capacitor/core')
+
+        // Hide splash screen after app is loaded
+        SplashScreen.hide()
+
+        // Set status bar style
+        StatusBar.setStyle({ style: Style.Light }).catch((err) => {
+          console.error('Error setting status bar style:', err)
+        })
+
+        // Set status bar background color (Android only)
+        if (Capacitor.getPlatform() === 'android') {
+          StatusBar.setBackgroundColor({ color: '#ffffff' }).catch((err) => {
+            console.error('Error setting status bar color:', err)
+          })
+        }
+
+        // Handle Android back button
+        const backButtonListener = CapApp.addListener('backButton', ({ canGoBack }) => {
+          if (!canGoBack || window.location.pathname === '/') {
+            CapApp.exitApp()
+          } else {
+            window.history.back()
+          }
+        })
+
+        // Deep link handling is now done in AppUrlListener component
+
+        // Cleanup listeners on unmount
+        return () => {
+          backButtonListener.remove()
+        }
+      } else {
+        // Register service worker update handler for web
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then((registration) => {
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New content is available, notify user
+                  if (confirm('새로운 버전이 있습니다. 업데이트하시겠습니까?')) {
+                    window.location.reload()
+                  }
                 }
-              }
+              })
             })
           })
-        })
+        }
       }
     }
 
-    // Cleanup listeners on unmount
-    return () => {
-      if (isNative) {
-        CapApp.removeAllListeners()
-      }
-    }
+    setupPlatform()
   }, [])
 
   // Handle user-specific setup when user changes
   useEffect(() => {
-    const isNative = Capacitor.isNativePlatform()
+    const setupUserSpecificFeatures = async () => {
+      let isNative = false
+      try {
+        const { Capacitor } = await import('@capacitor/core')
+        isNative = Capacitor.isNativePlatform()
+      } catch {
+        isNative = false
+      }
 
-    if (isNative && user?.id) {
-      // Initialize push notifications
-      initPushNotifications(user.id).catch((err) => {
-        console.error('Error initializing push notifications:', err)
-      })
+      if (isNative && user?.id) {
+        const { initPushNotifications } = await import('./utils/notifications')
+        const { App: CapApp } = await import('@capacitor/app')
 
-      // Handle app state changes
-      const appStateListener = CapApp.addListener('appStateChange', ({ isActive }) => {
-        console.log('App state changed. Is active:', isActive)
-        // Refresh user data when app comes to foreground
-        if (isActive && user?.id) {
-          refreshUserData(user.id)
+        // Initialize push notifications
+        initPushNotifications(user.id).catch((err) => {
+          console.error('Error initializing push notifications:', err)
+        })
+
+        // Handle app state changes
+        const appStateListener = CapApp.addListener('appStateChange', ({ isActive }) => {
+          console.log('App state changed. Is active:', isActive)
+          // Refresh user data when app comes to foreground
+          if (isActive && user?.id) {
+            refreshUserData(user.id)
+          }
+        })
+
+        return () => {
+          appStateListener.remove()
         }
-      })
-
-      return () => {
-        appStateListener.remove()
       }
     }
+
+    setupUserSpecificFeatures()
   }, [user?.id])
 
   const refreshUserData = async (userId) => {

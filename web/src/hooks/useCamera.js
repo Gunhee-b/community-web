@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import { Capacitor } from '@capacitor/core'
 
 /**
  * 네이티브 카메라/갤러리 기능을 제공하는 커스텀 훅
@@ -10,8 +8,20 @@ import { Capacitor } from '@capacitor/core'
 export const useCamera = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [isNative, setIsNative] = useState(false)
 
-  const isNative = Capacitor.isNativePlatform()
+  // Check if native on first use
+  const checkNativePlatform = async () => {
+    try {
+      const { Capacitor } = await import('@capacitor/core')
+      const native = Capacitor.isNativePlatform()
+      setIsNative(native)
+      return native
+    } catch {
+      setIsNative(false)
+      return false
+    }
+  }
 
   /**
    * 이미지 크기를 검증하는 함수
@@ -31,24 +41,28 @@ export const useCamera = () => {
   /**
    * 카메라로 사진 촬영 또는 갤러리에서 선택
    * @param {Object} options - 옵션 설정
-   * @param {CameraSource} options.source - 카메라 소스 (CAMERA, PHOTOS, PROMPT)
+   * @param {string} options.source - 카메라 소스 (CAMERA, PHOTOS, PROMPT)
    * @param {number} options.quality - 이미지 품질 (0-100)
    * @param {number} options.width - 이미지 최대 너비
    * @param {number} options.height - 이미지 최대 높이
    * @returns {Promise<string|null>} base64 data URL 또는 null
    */
   const takePicture = async (options = {}) => {
+    const native = await checkNativePlatform()
+
+    // 웹 환경에서는 null 반환 (기존 input file 사용)
+    if (!native) {
+      return null
+    }
+
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+
     const {
       source = CameraSource.Prompt, // 카메라/갤러리 선택 프롬프트
       quality = 90,
       width = 1024,
       height = 1024,
     } = options
-
-    // 웹 환경에서는 null 반환 (기존 input file 사용)
-    if (!isNative) {
-      return null
-    }
 
     setLoading(true)
     setError(null)
