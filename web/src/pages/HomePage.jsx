@@ -73,7 +73,7 @@ function HomePage() {
 
   return (
     <div>
-      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-6">ING:K 커뮤니티</h1>
+      <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-6">Rezom 커뮤니티</h1>
 
       {/* 로그인 안내 배너 - 로그인하지 않은 사용자에게만 표시 */}
       {!isLoggedIn && (

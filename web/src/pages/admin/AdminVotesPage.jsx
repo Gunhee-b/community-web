@@ -32,7 +32,7 @@ function AdminVotesPage() {
       twoWeeksLater.setDate(today.getDate() + 14)
 
       setNewPeriodData({
-        title: `ING:K ${today.getMonth() + 1}월-${Math.ceil(today.getDate() / 15)} 베스트 글 투표`,
+        title: `Rezom ${today.getMonth() + 1}월-${Math.ceil(today.getDate() / 15)} 베스트 글 투표`,
         description: '가장 통찰력 있는 글에 투표해주세요!',
         startDate: today.toISOString().split('T')[0],
         endDate: twoWeeksLater.toISOString().split('T')[0],
@@ -353,7 +353,7 @@ function AdminVotesPage() {
                   onChange={(e) =>
                     setNewPeriodData({ ...newPeriodData, title: e.target.value })
                   }
-                  placeholder="예: ING:K 10월-1 베스트 글 투표"
+                  placeholder="예: Rezom 10월-1 베스트 글 투표"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
