@@ -1,13 +1,17 @@
-import { Preferences } from '@capacitor/preferences'
-import { Capacitor } from '@capacitor/core'
-
 /**
  * 플랫폼별 안전한 스토리지 유틸리티
  * 네이티브 앱: Capacitor Preferences 사용 (iOS Keychain, Android EncryptedSharedPreferences)
  * 웹: localStorage 사용
  */
 
-const isNative = Capacitor.isNativePlatform()
+const checkIfNative = async () => {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
+}
 
 export const secureStorage = {
   /**
@@ -17,7 +21,9 @@ export const secureStorage = {
    */
   async setItem(key, value) {
     try {
+      const isNative = await checkIfNative()
       if (isNative) {
+        const { Preferences } = await import('@capacitor/preferences')
         await Preferences.set({ key, value })
       } else {
         localStorage.setItem(key, value)
@@ -35,7 +41,9 @@ export const secureStorage = {
    */
   async getItem(key) {
     try {
+      const isNative = await checkIfNative()
       if (isNative) {
+        const { Preferences } = await import('@capacitor/preferences')
         const { value } = await Preferences.get({ key })
         return value
       } else {
@@ -53,7 +61,9 @@ export const secureStorage = {
    */
   async removeItem(key) {
     try {
+      const isNative = await checkIfNative()
       if (isNative) {
+        const { Preferences } = await import('@capacitor/preferences')
         await Preferences.remove({ key })
       } else {
         localStorage.removeItem(key)
@@ -69,7 +79,9 @@ export const secureStorage = {
    */
   async clear() {
     try {
+      const isNative = await checkIfNative()
       if (isNative) {
+        const { Preferences } = await import('@capacitor/preferences')
         await Preferences.clear()
       } else {
         localStorage.clear()
@@ -86,7 +98,9 @@ export const secureStorage = {
    */
   async keys() {
     try {
+      const isNative = await checkIfNative()
       if (isNative) {
+        const { Preferences } = await import('@capacitor/preferences')
         const { keys } = await Preferences.keys()
         return keys
       } else {

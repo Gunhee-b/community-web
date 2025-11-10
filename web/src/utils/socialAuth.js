@@ -1,11 +1,18 @@
 import { supabase } from '../lib/supabase'
-import { Capacitor } from '@capacitor/core'
 
 /**
  * Get redirect URL based on platform (web vs mobile)
  */
-const getRedirectUrl = () => {
-  if (Capacitor.isNativePlatform()) {
+const getRedirectUrl = async () => {
+  let isNative = false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    isNative = Capacitor.isNativePlatform()
+  } catch {
+    // Not in native environment
+  }
+
+  if (isNative) {
     // For mobile apps, use custom scheme
     return 'ingk://auth/callback'
   }
@@ -21,10 +28,11 @@ const getRedirectUrl = () => {
  */
 export const signInWithGoogle = async () => {
   try {
+    const redirectUrl = await getRedirectUrl()
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: getRedirectUrl(),
+        redirectTo: redirectUrl,
         skipBrowserRedirect: false,
         queryParams: {
           access_type: 'offline',
@@ -50,7 +58,7 @@ export const signInWithKakao = async () => {
     // For now, we'll use a custom flow with Kakao REST API
     // This will need to be implemented with Kakao JavaScript SDK
     const KAKAO_CLIENT_ID = import.meta.env.VITE_KAKAO_CLIENT_ID
-    const REDIRECT_URI = getRedirectUrl()
+    const REDIRECT_URI = await getRedirectUrl()
 
     if (!KAKAO_CLIENT_ID) {
       throw new Error('Kakao Client ID is not configured')
@@ -59,7 +67,15 @@ export const signInWithKakao = async () => {
     // Redirect to Kakao OAuth
     const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&state=kakao`
 
-    if (Capacitor.isNativePlatform()) {
+    let isNative = false
+    try {
+      const { Capacitor } = await import('@capacitor/core')
+      isNative = Capacitor.isNativePlatform()
+    } catch {
+      // Not in native environment
+    }
+
+    if (isNative) {
       // For mobile, use Browser plugin
       const { Browser } = await import('@capacitor/browser')
       await Browser.open({ url: kakaoAuthUrl })
@@ -150,7 +166,7 @@ export const handleKakaoCallback = async (code) => {
   try {
     const KAKAO_CLIENT_ID = import.meta.env.VITE_KAKAO_CLIENT_ID
     const KAKAO_CLIENT_SECRET = import.meta.env.VITE_KAKAO_CLIENT_SECRET
-    const REDIRECT_URI = getRedirectUrl()
+    const REDIRECT_URI = await getRedirectUrl()
 
     console.log('Kakao callback - Redirect URI:', REDIRECT_URI)
     console.log('Kakao callback - Code:', code)
@@ -277,11 +293,12 @@ export const syncSocialUser = async (authUser) => {
  */
 export const linkSocialAccountToUser = async (userId, provider) => {
   try {
+    const redirectUrl = await getRedirectUrl()
     // Start OAuth flow with metadata
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: getRedirectUrl(),
+        redirectTo: redirectUrl,
         queryParams: {
           link_user_id: userId,
         },

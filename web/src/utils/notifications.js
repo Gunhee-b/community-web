@@ -1,8 +1,4 @@
-import { PushNotifications } from '@capacitor/push-notifications'
-import { Capacitor } from '@capacitor/core'
 import { supabase } from '../lib/supabase'
-
-const isNative = Capacitor.isNativePlatform()
 
 /**
  * 푸시 알림을 초기화하고 권한을 요청합니다
@@ -10,12 +6,24 @@ const isNative = Capacitor.isNativePlatform()
  * @returns {Promise<boolean>} 성공 여부
  */
 export const initPushNotifications = async (userId) => {
+  let isNative = false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    isNative = Capacitor.isNativePlatform()
+  } catch {
+    console.log('Push notifications are only available on native platforms')
+    return false
+  }
+
   if (!isNative) {
     console.log('Push notifications are only available on native platforms')
     return false
   }
 
   try {
+    const { PushNotifications } = await import('@capacitor/push-notifications')
+    const { Capacitor } = await import('@capacitor/core')
+
     // 권한 요청
     const permStatus = await PushNotifications.requestPermissions()
 
@@ -119,11 +127,20 @@ const handleNotificationAction = (data) => {
  * @returns {Promise<string>} 권한 상태 ('granted', 'denied', 'prompt')
  */
 export const checkPushPermissions = async () => {
+  let isNative = false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    isNative = Capacitor.isNativePlatform()
+  } catch {
+    return 'denied'
+  }
+
   if (!isNative) {
     return 'denied'
   }
 
   try {
+    const { PushNotifications } = await import('@capacitor/push-notifications')
     const permStatus = await PushNotifications.checkPermissions()
     return permStatus.receive
   } catch (error) {
@@ -137,11 +154,20 @@ export const checkPushPermissions = async () => {
  * @param {string} userId - 사용자 ID
  */
 export const removePushToken = async (userId) => {
+  let isNative = false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    isNative = Capacitor.isNativePlatform()
+  } catch {
+    return
+  }
+
   if (!isNative) {
     return
   }
 
   try {
+    const { Capacitor } = await import('@capacitor/core')
     const platform = Capacitor.getPlatform()
 
     // Supabase에서 디바이스 토큰 삭제
@@ -165,11 +191,20 @@ export const removePushToken = async (userId) => {
  * 모든 푸시 알림 리스너 제거
  */
 export const removeAllPushListeners = async () => {
+  let isNative = false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    isNative = Capacitor.isNativePlatform()
+  } catch {
+    return
+  }
+
   if (!isNative) {
     return
   }
 
   try {
+    const { PushNotifications } = await import('@capacitor/push-notifications')
     await PushNotifications.removeAllListeners()
     console.log('All push notification listeners removed')
   } catch (error) {
