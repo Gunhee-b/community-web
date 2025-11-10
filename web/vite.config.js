@@ -5,15 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: [
-        '@capacitor/app',
-        '@capacitor/status-bar',
-        '@capacitor/splash-screen',
-        '@capacitor/core',
-        '@capacitor/preferences',
-        '@capacitor/camera',
-        '@capacitor/push-notifications'
-      ]
+      external: (id) => {
+        // Externalize all Capacitor modules for web builds
+        return id.startsWith('@capacitor/')
+      }
     }
   },
   plugins: [
