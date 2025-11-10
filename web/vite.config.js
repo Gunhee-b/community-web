@@ -43,20 +43,48 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            // Only cache GET requests for storage/static content
+            // IMPORTANT: Exclude ALL authentication-related endpoints
+            urlPattern: ({ url, request }) => {
+              // Only cache GET requests
+              if (request.method !== 'GET') return false
+
+              // Must be from supabase.co domain
+              if (!url.hostname.includes('supabase.co')) return false
+
+              // Exclude authentication endpoints
+              if (url.pathname.includes('/auth/')) return false
+              if (url.pathname.includes('/oauth/')) return false
+
+              // Exclude RPC endpoints (these are for dynamic operations)
+              if (url.pathname.includes('/rpc/')) return false
+
+              // Exclude REST API write operations
+              if (url.pathname.includes('/rest/')) {
+                // Only cache storage/static reads
+                return url.pathname.includes('/storage/')
+              }
+
+              return true
+            },
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'supabase-cache',
+              cacheName: 'supabase-static-cache',
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               cacheableResponse: {
                 statuses: [0, 200]
-              }
+              },
+              networkTimeoutSeconds: 10
             }
           }
-        ]
+        ],
+        // Don't cache navigation requests to auth URLs
+        navigateFallbackDenylist: [/^\/auth/, /^\/oauth/],
+        // Clean old caches
+        cleanupOutdatedCaches: true
       },
       devOptions: {
         enabled: true

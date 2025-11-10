@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>캐시 초기화 - ING:K</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2563eb;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 10px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .status.info {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+    }
+    .status.success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+    .info-box {
+      background: #f8fafc;
+      border-left: 4px solid #2563eb;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .info-box h3 {
+      margin-top: 0;
+      color: #1e40af;
+    }
+    .info-box ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    .info-box li {
+      margin: 5px 0;
+    }
+    code {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 캐시 초기화</h1>
+    <p class="subtitle">로그인 문제가 있나요? 캐시를 초기화해보세요.</p>
+
+    <div class="info-box">
+      <h3>이 페이지는 언제 사용하나요?</h3>
+      <ul>
+        <li>로그인이 무한 로딩에 걸릴 때</li>
+        <li>로그인 버튼을 눌러도 반응이 없을 때</li>
+        <li>이전 버전의 페이지가 계속 보일 때</li>
+        <li>관리자가 "캐시를 삭제하세요"라고 안내했을 때</li>
+      </ul>
+    </div>
+
+    <button id="clearAllBtn" onclick="clearAll()">
+      🗑️ 모든 캐시 삭제
+    </button>
+
+    <button id="clearCachesBtn" onclick="clearCaches()">
+      📦 브라우저 캐시만 삭제
+    </button>
+
+    <button id="unregisterSWBtn" onclick="unregisterServiceWorkers()">
+      🔄 Service Worker 제거
+    </button>
+
+    <button onclick="goHome()" style="background: #64748b;">
+      🏠 홈으로 돌아가기
+    </button>
+
+    <div id="status"></div>
+
+    <div class="info-box" style="margin-top: 30px;">
+      <h3>수동으로 캐시 삭제하기</h3>
+      <p><strong>Windows/Linux:</strong> <code>Ctrl + Shift + R</code></p>
+      <p><strong>Mac:</strong> <code>Cmd + Shift + R</code></p>
+      <p style="margin-top: 15px;">
+        또는 F12 → Application → Clear storage → Clear site data
+      </p>
+    </div>
+  </div>
+
+  <script>
+    function showStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('status')
+      statusDiv.className = `status ${type}`
+      statusDiv.innerHTML = message
+      statusDiv.style.display = 'block'
+    }
+
+    async function clearCaches() {
+      const btn = document.getElementById('clearCachesBtn')
+      btn.disabled = true
+      btn.textContent = '삭제 중...'
+
+      try {
+        const cacheNames = await caches.keys()
+
+        if (cacheNames.length === 0) {
+          showStatus('❌ 삭제할 캐시가 없습니다.', 'info')
+        } else {
+          await Promise.all(cacheNames.map(name => caches.delete(name)))
+          showStatus(`✅ ${cacheNames.length}개의 캐시를 삭제했습니다.<br>이름: ${cacheNames.join(', ')}`, 'success')
+        }
+      } catch (error) {
+        showStatus(`❌ 오류: ${error.message}`, 'error')
+      } finally {
+        btn.disabled = false
+        btn.textContent = '📦 브라우저 캐시만 삭제'
+      }
+    }
+
+    async function unregisterServiceWorkers() {
+      const btn = document.getElementById('unregisterSWBtn')
+      btn.disabled = true
+      btn.textContent = '제거 중...'
+
+      try {
+        if (!navigator.serviceWorker) {
+          showStatus('❌ Service Worker를 지원하지 않는 브라우저입니다.', 'info')
+          return
+        }
+
+        const registrations = await navigator.serviceWorker.getRegistrations()
+
+        if (registrations.length === 0) {
+          showStatus('❌ 제거할 Service Worker가 없습니다.', 'info')
+        } else {
+          await Promise.all(registrations.map(reg => reg.unregister()))
+          showStatus(`✅ ${registrations.length}개의 Service Worker를 제거했습니다.`, 'success')
+        }
+      } catch (error) {
+        showStatus(`❌ 오류: ${error.message}`, 'error')
+      } finally {
+        btn.disabled = false
+        btn.textContent = '🔄 Service Worker 제거'
+      }
+    }
+
+    async function clearAll() {
+      const btn = document.getElementById('clearAllBtn')
+      btn.disabled = true
+      btn.textContent = '삭제 중...'
+
+      showStatus('🔄 캐시와 Service Worker를 모두 삭제하는 중...', 'info')
+
+      try {
+        // Clear caches
+        const cacheNames = await caches.keys()
+        await Promise.all(cacheNames.map(name => caches.delete(name)))
+
+        // Unregister service workers
+        if (navigator.serviceWorker) {
+          const registrations = await navigator.serviceWorker.getRegistrations()
+          await Promise.all(registrations.map(reg => reg.unregister()))
+        }
+
+        showStatus(
+          `✅ 완료!<br>` +
+          `- ${cacheNames.length}개의 캐시 삭제<br>` +
+          `- Service Worker 제거<br><br>` +
+          `<strong>이제 페이지를 새로고침하세요!</strong>`,
+          'success'
+        )
+
+        // 3초 후 자동 새로고침
+        setTimeout(() => {
+          window.location.href = '/'
+        }, 3000)
+      } catch (error) {
+        showStatus(`❌ 오류: ${error.message}`, 'error')
+      } finally {
+        btn.disabled = false
+        btn.textContent = '🗑️ 모든 캐시 삭제'
+      }
+    }
+
+    function goHome() {
+      window.location.href = '/'
+    }
+
+    // 페이지 로드 시 현재 상태 표시
+    window.addEventListener('load', async () => {
+      try {
+        const cacheNames = await caches.keys()
+        const swRegistrations = navigator.serviceWorker
+          ? await navigator.serviceWorker.getRegistrations()
+          : []
+
+        showStatus(
+          `📊 현재 상태:<br>` +
+          `- 캐시: ${cacheNames.length}개<br>` +
+          `- Service Worker: ${swRegistrations.length}개`,
+          'info'
+        )
+      } catch (error) {
+        console.error('상태 확인 실패:', error)
+      }
+    })
+  </script>
+</body>
+</html>
