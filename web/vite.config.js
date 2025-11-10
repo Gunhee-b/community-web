@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'ING:K 커뮤니티',
-        short_name: 'ING:K',
+        name: 'Rezom 커뮤니티',
+        short_name: 'Rezom',
         description: '250명 규모 커뮤니티를 위한 투표 및 오프라인 모임 플랫폼',
         theme_color: '#2563eb',
         background_color: '#ffffff',

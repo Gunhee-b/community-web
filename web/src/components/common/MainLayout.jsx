@@ -75,7 +75,7 @@ function MainLayout() {
 
             {/* Logo */}
             <Link to="/" className="text-lg md:text-2xl font-bold text-blue-600">
-              ING:K
+              Rezom
             </Link>
 
             {/* Desktop Navigation */}
@@ -420,7 +420,7 @@ function MainLayout() {
       <footer className="hidden md:block bg-white border-t mt-auto">
         <div className="max-w-app mx-auto px-8 py-4">
           <p className="text-center text-sm text-gray-500">
-            © 2025 ING:K 커뮤니티. All rights reserved.
+            © 2025 Rezom 커뮤니티. All rights reserved.
           </p>
         </div>
       </footer>

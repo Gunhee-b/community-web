@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">통찰방</string>
-    <string name="title_activity_main">통찰방</string>
-    <string name="package_name">com.tongchalban.community</string>
-    <string name="custom_url_scheme">com.tongchalban.community</string>
-</resources>

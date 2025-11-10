@@ -159,7 +159,7 @@ function QuestionsListPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">ING:K 질문 모음</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Rezom 질문 모음</h1>
         <p className="text-gray-600">스스로 정의하고, 표현하는 철학을 구축하기를 바랍니다.</p>
       </div>
 

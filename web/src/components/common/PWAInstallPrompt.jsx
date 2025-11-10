@@ -79,7 +79,7 @@ function PWAInstallPrompt() {
             앱으로 설치하기
           </h3>
           <p className="text-xs text-gray-600 mb-3">
-            ING:K를 홈 화면에 추가하여 앱처럼 사용하세요. 오프라인에서도 이용 가능합니다.
+            Rezom을 홈 화면에 추가하여 앱처럼 사용하세요. 오프라인에서도 이용 가능합니다.
           </p>
           <div className="flex space-x-2">
             <Button

@@ -82,7 +82,7 @@ define(['./workbox-e755d862'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.u6v5ofskafg"
+    "revision": "0.cv0q3ral848"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -90,11 +90,20 @@ define(['./workbox-e755d862'], (function (workbox) { 'use strict';
     denylist: [/^\/auth/, /^\/oauth/]
   }));
   workbox.registerRoute(({
-    url
+    url,
+    request
   }) => {
-    return url.hostname.includes("supabase.co") && !url.pathname.includes("/auth/") && !url.pathname.includes("/oauth/");
+    if (request.method !== "GET") return false;
+    if (!url.hostname.includes("supabase.co")) return false;
+    if (url.pathname.includes("/auth/")) return false;
+    if (url.pathname.includes("/oauth/")) return false;
+    if (url.pathname.includes("/rpc/")) return false;
+    if (url.pathname.includes("/rest/")) {
+      return url.pathname.includes("/storage/");
+    }
+    return true;
   }, new workbox.NetworkFirst({
-    "cacheName": "supabase-cache",
+    "cacheName": "supabase-static-cache",
     "networkTimeoutSeconds": 10,
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 50,
