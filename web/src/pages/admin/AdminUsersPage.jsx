@@ -9,15 +9,19 @@ import { useAuthStore } from '../../store/authStore'
 
 function AdminUsersPage() {
   const [users, setUsers] = useState([])
+  const [deletedUsers, setDeletedUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
   const [roleModalOpen, setRoleModalOpen] = useState(false)
   const [newRole, setNewRole] = useState('')
+  const [deletionReason, setDeletionReason] = useState('')
+  const [activeTab, setActiveTab] = useState('active') // 'active' or 'deleted'
   const currentUser = useAuthStore((state) => state.user)
 
   useEffect(() => {
     fetchUsers()
+    fetchDeletedUsers()
   }, [])
 
   const fetchUsers = async () => {
@@ -32,12 +36,31 @@ function AdminUsersPage() {
         throw error
       }
 
-      setUsers(data || [])
+      // Filter out deleted users (they have deleted_at set)
+      setUsers((data || []).filter(u => !u.deleted_at))
     } catch (error) {
       console.error('Error fetching users:', error)
       alert('회원 목록을 불러오는 중 오류가 발생했습니다: ' + (error.message || ''))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDeletedUsers = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_deleted_users', {
+        p_admin_user_id: currentUser?.id
+      })
+
+      if (error) {
+        console.error('Error fetching deleted users:', error)
+        throw error
+      }
+
+      setDeletedUsers(data || [])
+    } catch (error) {
+      console.error('Error fetching deleted users:', error)
+      // Don't alert for this error, just log it
     }
   }
 
@@ -78,20 +101,45 @@ function AdminUsersPage() {
     if (!selectedUser) return
 
     try {
-      const { error } = await supabase.rpc('delete_user_permanently', {
-        user_id: selectedUser.id,
-        admin_user_id: currentUser.id
+      const { data, error } = await supabase.rpc('soft_delete_user', {
+        p_user_id: selectedUser.id,
+        p_admin_user_id: currentUser.id,
+        p_deletion_reason: deletionReason || null
       })
 
       if (error) throw error
 
-      alert('회원이 영구 삭제되었습니다')
+      alert('회원이 삭제되었습니다 (복구 가능)')
       setDeleteModalOpen(false)
       setSelectedUser(null)
+      setDeletionReason('')
       fetchUsers()
+      fetchDeletedUsers()
     } catch (error) {
       console.error('Error deleting user:', error)
       alert(error.message || '회원 삭제 중 오류가 발생했습니다')
+    }
+  }
+
+  const handleRestoreUser = async (userId, username) => {
+    if (!confirm(`${username} 회원을 복구하시겠습니까?`)) {
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('restore_deleted_user', {
+        p_user_id: userId,
+        p_admin_user_id: currentUser.id
+      })
+
+      if (error) throw error
+
+      alert('회원이 성공적으로 복구되었습니다')
+      fetchUsers()
+      fetchDeletedUsers()
+    } catch (error) {
+      console.error('Error restoring user:', error)
+      alert(error.message || '회원 복구 중 오류가 발생했습니다')
     }
   }
 
@@ -182,7 +230,32 @@ function AdminUsersPage() {
     <div>
       <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 mb-8">회원 관리</h1>
 
-      <Card>
+      {/* Tabs */}
+      <div className="mb-6 flex gap-4 border-b">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`pb-3 px-4 font-medium transition-colors ${
+            activeTab === 'active'
+              ? 'border-b-2 border-blue-500 text-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          활성 회원 ({users.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('deleted')}
+          className={`pb-3 px-4 font-medium transition-colors ${
+            activeTab === 'deleted'
+              ? 'border-b-2 border-red-500 text-red-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          삭제된 회원 ({deletedUsers.length})
+        </button>
+      </div>
+
+      {activeTab === 'active' ? (
+        <Card>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -255,6 +328,63 @@ function AdminUsersPage() {
           </table>
         </div>
       </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4">닉네임</th>
+                  <th className="text-left py-3 px-4">역할</th>
+                  <th className="text-left py-3 px-4">삭제일</th>
+                  <th className="text-left py-3 px-4">삭제자</th>
+                  <th className="text-left py-3 px-4">삭제 사유</th>
+                  <th className="text-left py-3 px-4">작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-8 text-center text-gray-500">
+                      삭제된 회원이 없습니다
+                    </td>
+                  </tr>
+                ) : (
+                  deletedUsers.map((user) => (
+                    <tr key={user.user_id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4">{user.username}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded text-xs ${getRoleBadgeClass(user.role)}`}>
+                          {getRoleLabel(user.role)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {formatDate(user.deleted_at, 'yyyy-MM-dd HH:mm')}
+                      </td>
+                      <td className="py-3 px-4">
+                        {user.deleted_by_username || '-'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-gray-600">
+                          {user.deletion_reason || '-'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <button
+                          onClick={() => handleRestoreUser(user.user_id, user.username)}
+                          className="text-sm text-green-600 hover:text-green-800"
+                        >
+                          복구
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Role Change Modal */}
       <Modal
@@ -309,20 +439,46 @@ function AdminUsersPage() {
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={() => {
+          setDeleteModalOpen(false)
+          setDeletionReason('')
+        }}
         title="회원 삭제 확인"
       >
         <div className="space-y-4">
           <p className="text-gray-700">
-            정말로 <strong>{selectedUser?.username}</strong> 회원을 영구 삭제하시겠습니까?
+            <strong>{selectedUser?.username}</strong> 회원을 삭제하시겠습니까?
           </p>
-          <p className="text-sm text-red-600">
-            ⚠️ 이 작업은 되돌릴 수 없습니다. 회원의 모든 데이터가 삭제됩니다.
-          </p>
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>ℹ️ Soft Delete (복구 가능)</strong>
+            </p>
+            <ul className="text-sm text-blue-700 mt-2 space-y-1">
+              <li>• 회원 데이터는 완전히 백업됩니다</li>
+              <li>• 회원은 즉시 로그인할 수 없게 됩니다</li>
+              <li>• 언제든지 "삭제된 회원" 탭에서 복구 가능합니다</li>
+              <li>• 모든 관련 데이터가 보존됩니다</li>
+            </ul>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              삭제 사유 (선택사항)
+            </label>
+            <textarea
+              value={deletionReason}
+              onChange={(e) => setDeletionReason(e.target.value)}
+              placeholder="예: 커뮤니티 가이드라인 위반, 본인 요청 등"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows="3"
+            />
+          </div>
           <div className="flex gap-3 justify-end">
             <Button
               variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
+              onClick={() => {
+                setDeleteModalOpen(false)
+                setDeletionReason('')
+              }}
             >
               취소
             </Button>
