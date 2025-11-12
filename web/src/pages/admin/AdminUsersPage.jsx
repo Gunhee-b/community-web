@@ -57,10 +57,13 @@ function AdminUsersPage() {
         throw error
       }
 
-      setDeletedUsers(data || [])
+      // data is JSONB array, parse it
+      const deletedUsersArray = Array.isArray(data) ? data : []
+      setDeletedUsers(deletedUsersArray)
     } catch (error) {
       console.error('Error fetching deleted users:', error)
       // Don't alert for this error, just log it
+      setDeletedUsers([])
     }
   }
 
@@ -101,20 +104,38 @@ function AdminUsersPage() {
     if (!selectedUser) return
 
     try {
+      console.log('🗑️ Deleting user:', {
+        user_id: selectedUser.id,
+        username: selectedUser.username,
+        admin_id: currentUser.id,
+        reason: deletionReason
+      })
+
       const { data, error } = await supabase.rpc('soft_delete_user', {
         p_user_id: selectedUser.id,
         p_admin_user_id: currentUser.id,
         p_deletion_reason: deletionReason || null
       })
 
-      if (error) throw error
+      console.log('🗑️ Delete response:', { data, error })
+
+      if (error) {
+        console.error('Delete error details:', error)
+        throw error
+      }
+
+      if (data) {
+        console.log('✅ Delete successful:', data)
+      }
 
       alert('회원이 삭제되었습니다 (복구 가능)')
       setDeleteModalOpen(false)
       setSelectedUser(null)
       setDeletionReason('')
-      fetchUsers()
-      fetchDeletedUsers()
+
+      // Refresh both lists
+      await fetchUsers()
+      await fetchDeletedUsers()
     } catch (error) {
       console.error('Error deleting user:', error)
       alert(error.message || '회원 삭제 중 오류가 발생했습니다')
@@ -127,16 +148,27 @@ function AdminUsersPage() {
     }
 
     try {
+      console.log('♻️ Restoring user:', { user_id: userId, username, admin_id: currentUser.id })
+
       const { data, error } = await supabase.rpc('restore_deleted_user', {
         p_user_id: userId,
         p_admin_user_id: currentUser.id
       })
 
-      if (error) throw error
+      console.log('♻️ Restore response:', { data, error })
+
+      if (error) {
+        console.error('Restore error details:', error)
+        throw error
+      }
+
+      if (data) {
+        console.log('✅ Restore successful:', data)
+      }
 
       alert('회원이 성공적으로 복구되었습니다')
-      fetchUsers()
-      fetchDeletedUsers()
+      await fetchUsers()
+      await fetchDeletedUsers()
     } catch (error) {
       console.error('Error restoring user:', error)
       alert(error.message || '회원 복구 중 오류가 발생했습니다')

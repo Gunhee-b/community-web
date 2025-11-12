@@ -11,26 +11,18 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Button, Input, Loading } from '@/components/common';
+import { Loading } from '@/components/common';
 import { AuthService } from '@/services';
 import { useAuthStore, useAppStore } from '@/store';
-import { validateEmail, validatePassword } from '@/utils';
 import { theme } from '@/constants/theme';
 
 /**
  * LoginScreen
  *
  * 로그인 화면
- * - 이메일/비밀번호 로그인
- * - 소셜 로그인 (Google, Kakao, Naver)
- * - 회원가입 링크
- * - 비밀번호 재설정 링크
+ * - 소셜 로그인만 지원 (Google, Kakao, Naver)
  */
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
@@ -38,39 +30,19 @@ export default function LoginScreen() {
   const { theme: appTheme } = useAppStore();
   const isDark = appTheme === 'dark';
 
-  const handleLogin = async () => {
-    // 유효성 검사
-    const emailValidation = validateEmail(email);
-    const passwordValidation = validatePassword(password);
+  // 🔧 개발 모드: Mock 로그인 (서버 연결 없이 테스트)
+  const handleDevLogin = () => {
+    const mockUser = {
+      id: 1,
+      username: '테스트유저',
+      email: 'test@example.com',
+      role: 'member',
+      created_at: new Date().toISOString(),
+    };
+    const mockToken = 'mock-jwt-token-for-testing';
 
-    if (!emailValidation.valid || !passwordValidation.valid) {
-      setEmailError(emailValidation.error || '');
-      setPasswordError(passwordValidation.error || '');
-      return;
-    }
-
-    setEmailError('');
-    setPasswordError('');
-    setIsLoading(true);
-
-    try {
-      // 로그인 API 호출
-      const result = await AuthService.login({ email, password });
-
-      if (result.success && result.data) {
-        // AuthStore에 저장
-        login(result.data.user, result.data.access_token, 'local');
-
-        // 홈 화면으로 이동 (자동으로 처리됨 - _layout.tsx)
-        console.log('✅ Login successful');
-      } else {
-        Alert.alert('로그인 실패', result.error || '알 수 없는 오류가 발생했습니다.');
-      }
-    } catch (error: any) {
-      Alert.alert('오류', error.message || '로그인 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
+    login(mockUser, mockToken, 'google'); // 소셜 로그인으로 변경
+    console.log('✅ Dev Mode: Mock login successful');
   };
 
   const handleSocialLogin = async (provider: 'google' | 'kakao' | 'naver') => {
@@ -83,15 +55,11 @@ export default function LoginScreen() {
           result = await AuthService.signInWithGoogle();
           break;
         case 'kakao':
-          // TODO: Kakao 로그인 구현
-          Alert.alert('알림', 'Kakao 로그인은 곧 지원될 예정입니다.');
-          setIsLoading(false);
-          return;
+          result = await AuthService.signInWithKakao();
+          break;
         case 'naver':
-          // TODO: Naver 로그인 구현
-          Alert.alert('알림', 'Naver 로그인은 곧 지원될 예정입니다.');
-          setIsLoading(false);
-          return;
+          result = await AuthService.signInWithNaver();
+          break;
       }
 
       if (result?.success && result.data) {
@@ -137,59 +105,9 @@ export default function LoginScreen() {
           <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
             한국 커뮤니티에 오신 것을 환영합니다
           </Text>
-        </View>
-
-        {/* Login Form */}
-        <View style={styles.form}>
-          <Input
-            label="이메일"
-            placeholder="your@email.com"
-            value={email}
-            onChangeText={setEmail}
-            type="email"
-            leftIcon="mail-outline"
-            error={emailError}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-
-          <Input
-            label="비밀번호"
-            placeholder="••••••••"
-            value={password}
-            onChangeText={setPassword}
-            type="password"
-            leftIcon="lock-closed-outline"
-            error={passwordError}
-          />
-
-          {/* Forgot Password */}
-          <TouchableOpacity
-            onPress={() => router.push('/(auth)/reset-password')}
-            style={styles.forgotPassword}
-          >
-            <Text style={styles.forgotPasswordText}>
-              비밀번호를 잊으셨나요?
-            </Text>
-          </TouchableOpacity>
-
-          {/* Login Button */}
-          <Button
-            title="로그인"
-            onPress={handleLogin}
-            variant="primary"
-            size="large"
-            fullWidth
-          />
-        </View>
-
-        {/* Divider */}
-        <View style={styles.divider}>
-          <View style={[styles.dividerLine, isDark && styles.dividerLineDark]} />
-          <Text style={[styles.dividerText, isDark && styles.dividerTextDark]}>
-            또는
+          <Text style={[styles.subtitle, isDark && styles.subtitleDark, { marginTop: 16 }]}>
+            소셜 계정으로 로그인하세요
           </Text>
-          <View style={[styles.dividerLine, isDark && styles.dividerLineDark]} />
         </View>
 
         {/* Social Login Buttons */}
@@ -225,15 +143,15 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Signup Link */}
-        <View style={styles.signupContainer}>
-          <Text style={[styles.signupText, isDark && styles.signupTextDark]}>
-            계정이 없으신가요?{' '}
+        {/* 🔧 개발 모드: Mock 로그인 버튼 */}
+        <TouchableOpacity
+          style={styles.devButton}
+          onPress={handleDevLogin}
+        >
+          <Text style={styles.devButtonText}>
+            🔧 개발자 모드: 바로 입장하기 (테스트용)
           </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
-            <Text style={styles.signupLink}>회원가입</Text>
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -292,42 +210,6 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
 
-  // Form
-  form: {
-    marginBottom: theme.spacing.lg,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: theme.spacing.md,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: theme.colors.primary,
-  },
-
-  // Divider
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: theme.spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E5E7',
-  },
-  dividerLineDark: {
-    backgroundColor: '#38383A',
-  },
-  dividerText: {
-    paddingHorizontal: theme.spacing.md,
-    fontSize: 14,
-    color: '#999999',
-  },
-  dividerTextDark: {
-    color: '#8E8E93',
-  },
-
   // Social Buttons
   socialButtons: {
     gap: theme.spacing.sm,
@@ -362,22 +244,18 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 
-  // Signup
-  signupContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  // Dev Mode
+  devButton: {
+    marginTop: theme.spacing.xxl,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: '#FF9500',
+    borderRadius: theme.borderRadius.lg,
     alignItems: 'center',
   },
-  signupText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  signupTextDark: {
-    color: '#8E8E93',
-  },
-  signupLink: {
+  devButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.primary,
+    color: 'white',
   },
 });

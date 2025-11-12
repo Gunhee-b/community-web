@@ -479,6 +479,132 @@ export class AuthService {
       };
     }
   }
+
+  /**
+   * Google 소셜 로그인
+   *
+   * Google OAuth를 사용한 로그인
+   *
+   * @returns 인증 응답 또는 에러
+   *
+   * @example
+   * ```typescript
+   * const result = await AuthService.signInWithGoogle();
+   * if (result.success && result.data) {
+   *   console.log('Google login successful:', result.data.user);
+   * }
+   * ```
+   */
+  static async signInWithGoogle() {
+    try {
+      // TODO: Google OAuth 구현
+      // 1. Google Sign-In SDK 사용
+      // 2. ID Token 받기
+      // 3. 백엔드로 ID Token 전송하여 인증
+
+      const response = await post<AuthResponse>(API_ENDPOINTS.AUTH.SOCIAL_LOGIN, {
+        provider: 'google',
+        // token: googleIdToken, // Google에서 받은 ID Token
+      });
+
+      if (response.success && response.data) {
+        await this.saveAuthData(response.data, 'social');
+        return response;
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      return {
+        success: false,
+        error: error.message || 'Google 로그인 중 오류가 발생했습니다',
+      };
+    }
+  }
+
+  /**
+   * Kakao 소셜 로그인
+   *
+   * Kakao OAuth를 사용한 로그인
+   *
+   * @returns 인증 응답 또는 에러
+   *
+   * @example
+   * ```typescript
+   * const result = await AuthService.signInWithKakao();
+   * if (result.success && result.data) {
+   *   console.log('Kakao login successful:', result.data.user);
+   * }
+   * ```
+   */
+  static async signInWithKakao() {
+    try {
+      // TODO: Kakao Login 구현
+      // 1. Kakao SDK 사용
+      // 2. Access Token 받기
+      // 3. 백엔드로 Access Token 전송하여 인증
+
+      const response = await post<AuthResponse>(API_ENDPOINTS.AUTH.SOCIAL_LOGIN, {
+        provider: 'kakao',
+        // token: kakaoAccessToken, // Kakao에서 받은 Access Token
+      });
+
+      if (response.success && response.data) {
+        await this.saveAuthData(response.data, 'social');
+        return response;
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('Kakao login error:', error);
+      return {
+        success: false,
+        error: error.message || 'Kakao 로그인 중 오류가 발생했습니다',
+      };
+    }
+  }
+
+  /**
+   * Naver 소셜 로그인
+   *
+   * Naver OAuth를 사용한 로그인
+   *
+   * @returns 인증 응답 또는 에러
+   *
+   * @example
+   * ```typescript
+   * const result = await AuthService.signInWithNaver();
+   * if (result.success && result.data) {
+   *   console.log('Naver login successful:', result.data.user);
+   * }
+   * ```
+   */
+  static async signInWithNaver() {
+    try {
+      // TODO: Naver Login 구현
+      // 1. Naver SDK 사용
+      // 2. Access Token 받기
+      // 3. 백엔드로 Access Token 전송하여 인증
+
+      const response = await post<AuthResponse>(API_ENDPOINTS.AUTH.SOCIAL_LOGIN, {
+        provider: 'naver',
+        // token: naverAccessToken, // Naver에서 받은 Access Token
+      });
+
+      if (response.success && response.data) {
+        await this.saveAuthData(response.data, 'social');
+        return response;
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('Naver login error:', error);
+      return {
+        success: false,
+        error: error.message || 'Naver 로그인 중 오류가 발생했습니다',
+      };
+    }
+  }
 }
 
 // 기본 export

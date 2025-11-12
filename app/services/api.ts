@@ -33,6 +33,7 @@ export const API_ENDPOINTS = {
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
     ME: '/auth/me',
+    SOCIAL_LOGIN: '/auth/social-login', // 소셜 로그인 엔드포인트
   },
   // Meetings
   MEETINGS: {
