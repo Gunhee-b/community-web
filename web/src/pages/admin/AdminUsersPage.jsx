@@ -57,6 +57,13 @@ function AdminUsersPage() {
         throw error
       }
 
+      // Check if data is an error response
+      if (data && data.success === false) {
+        console.error('Function returned error:', data.error)
+        setDeletedUsers([])
+        return
+      }
+
       // data is JSONB array, parse it
       const deletedUsersArray = Array.isArray(data) ? data : []
       setDeletedUsers(deletedUsersArray)
@@ -124,11 +131,28 @@ function AdminUsersPage() {
         throw error
       }
 
-      if (data) {
-        console.log('✅ Delete successful:', data)
+      // Check if function returned an error
+      if (data && data.success === false) {
+        console.error('❌ Delete failed:', data.error)
+        alert(`삭제 실패: ${data.error}`)
+
+        // If user is already deleted, refresh the lists
+        if (data.error.includes('already deleted')) {
+          await fetchUsers()
+          await fetchDeletedUsers()
+        }
+
+        setDeleteModalOpen(false)
+        setSelectedUser(null)
+        setDeletionReason('')
+        return
       }
 
-      alert('회원이 삭제되었습니다 (복구 가능)')
+      if (data && data.success === true) {
+        console.log('✅ Delete successful:', data)
+        alert('회원이 삭제되었습니다 (복구 가능)')
+      }
+
       setDeleteModalOpen(false)
       setSelectedUser(null)
       setDeletionReason('')
@@ -162,11 +186,18 @@ function AdminUsersPage() {
         throw error
       }
 
-      if (data) {
-        console.log('✅ Restore successful:', data)
+      // Check if function returned an error
+      if (data && data.success === false) {
+        console.error('❌ Restore failed:', data.error)
+        alert(`복구 실패: ${data.error}`)
+        return
       }
 
-      alert('회원이 성공적으로 복구되었습니다')
+      if (data && data.success === true) {
+        console.log('✅ Restore successful:', data)
+        alert('회원이 성공적으로 복구되었습니다')
+      }
+
       await fetchUsers()
       await fetchDeletedUsers()
     } catch (error) {
