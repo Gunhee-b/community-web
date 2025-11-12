@@ -350,16 +350,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_deleted_users(p_admin_user_id UUID)
-RETURNS TABLE (
-    user_id UUID,
-    username TEXT,
-    email TEXT,
-    role user_role,
-    deleted_at TIMESTAMP WITH TIME ZONE,
-    deleted_by_username TEXT,
-    deletion_reason TEXT,
-    can_restore BOOLEAN
-) AS $$
+RETURNS JSONB AS $$
+DECLARE
+    v_result JSONB;
 BEGIN
     -- Check if admin
     IF NOT EXISTS (
@@ -367,31 +360,37 @@ BEGIN
         WHERE id = p_admin_user_id
         AND role = 'admin'
         AND is_active = true
+        AND deleted_at IS NULL  -- Admin must not be deleted
     ) THEN
-        RAISE EXCEPTION 'Only admins can view deleted users';
+        RAISE EXCEPTION 'Only active admins can view deleted users';
     END IF;
 
-    RETURN QUERY
-    SELECT
-        u.id,
-        u.username,
-        u.email,
-        u.role,
-        u.deleted_at,
-        deleter.username as deleted_by_username,
-        a.deletion_reason,
-        (u.deleted_at IS NOT NULL) as can_restore
-    FROM users u
-    LEFT JOIN users deleter ON u.deleted_by = deleter.id
-    LEFT JOIN LATERAL (
-        SELECT deletion_reason
-        FROM deleted_users_archive
-        WHERE user_id = u.id
-        ORDER BY deleted_at DESC
-        LIMIT 1
-    ) a ON true
-    WHERE u.deleted_at IS NOT NULL
-    ORDER BY u.deleted_at DESC;
+    -- Get deleted users as JSONB array
+    SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::json)::jsonb INTO v_result
+    FROM (
+        SELECT
+            u.id as user_id,
+            u.username,
+            u.email,
+            u.role,
+            u.deleted_at,
+            deleter.username as deleted_by_username,
+            a.deletion_reason,
+            true as can_restore
+        FROM users u
+        LEFT JOIN users deleter ON u.deleted_by = deleter.id
+        LEFT JOIN LATERAL (
+            SELECT deletion_reason
+            FROM deleted_users_archive
+            WHERE user_id = u.id
+            ORDER BY deleted_at DESC
+            LIMIT 1
+        ) a ON true
+        WHERE u.deleted_at IS NOT NULL
+        ORDER BY u.deleted_at DESC
+    ) t;
+
+    RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

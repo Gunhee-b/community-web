@@ -32,18 +32,25 @@ export default function RootLayout() {
     // 인증 상태에 따라 자동 네비게이션
     if (isLoading) return;
 
+    // segments가 초기화되지 않았으면 대기 (Root Layout 마운트 전)
+    if (!segments || segments.length === 0) return;
+
     const inAuthGroup = segments[0] === '(auth)';
     const inTabsGroup = segments[0] === '(tabs)';
 
     // 무한 루프 방지: 이미 올바른 그룹에 있으면 리다이렉트하지 않음
     if (!user && !inAuthGroup) {
       // 로그인 안 되어 있고, 인증 화면이 아니면 로그인 화면으로
-      router.replace('/(auth)/login');
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 0);
     } else if (user && !inTabsGroup && inAuthGroup) {
       // 로그인 되어 있고, 탭 화면이 아니고, 인증 화면에 있으면 메인 화면으로
-      router.replace('/(tabs)/home');
+      setTimeout(() => {
+        router.replace('/(tabs)/home');
+      }, 0);
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, segments]);
 
   const initializeApp = async () => {
     try {
