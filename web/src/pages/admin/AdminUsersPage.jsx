@@ -17,6 +17,8 @@ function AdminUsersPage() {
   const [newRole, setNewRole] = useState('')
   const [deletionReason, setDeletionReason] = useState('')
   const [activeTab, setActiveTab] = useState('active') // 'active' or 'deleted'
+  const [permanentDeleteModalOpen, setPermanentDeleteModalOpen] = useState(false)
+  const [permanentDeleteConfirmText, setPermanentDeleteConfirmText] = useState('')
   const currentUser = useAuthStore((state) => state.user)
 
   useEffect(() => {
@@ -203,6 +205,66 @@ function AdminUsersPage() {
     } catch (error) {
       console.error('Error restoring user:', error)
       alert(error.message || '회원 복구 중 오류가 발생했습니다')
+    }
+  }
+
+  const handlePermanentDeleteClick = (user) => {
+    setSelectedUser(user)
+    setPermanentDeleteConfirmText('')
+    setPermanentDeleteModalOpen(true)
+  }
+
+  const handlePermanentDeleteConfirm = async () => {
+    if (!selectedUser) return
+
+    // Require exact username match for confirmation
+    if (permanentDeleteConfirmText !== selectedUser.username) {
+      alert('닉네임이 일치하지 않습니다. 정확히 입력해주세요.')
+      return
+    }
+
+    try {
+      console.log('💀 Permanently deleting user:', {
+        user_id: selectedUser.user_id,
+        username: selectedUser.username,
+        admin_id: currentUser.id
+      })
+
+      const { data, error } = await supabase.rpc('permanently_delete_user', {
+        p_user_id: selectedUser.user_id,
+        p_admin_user_id: currentUser.id,
+        p_confirm_permanent_deletion: true
+      })
+
+      console.log('💀 Permanent delete response:', { data, error })
+
+      if (error) {
+        console.error('Permanent delete error details:', error)
+        throw error
+      }
+
+      // Check if function returned an error
+      if (data && data.success === false) {
+        console.error('❌ Permanent delete failed:', data.error)
+        alert(`영구 삭제 실패: ${data.error}`)
+        return
+      }
+
+      if (data && data.success === true) {
+        console.log('✅ Permanent delete successful:', data)
+        alert(`회원이 영구적으로 삭제되었습니다.\n\n⚠️ ${data.warning || '이 작업은 되돌릴 수 없습니다.'}`)
+      }
+
+      setPermanentDeleteModalOpen(false)
+      setSelectedUser(null)
+      setPermanentDeleteConfirmText('')
+
+      // Refresh both lists
+      await fetchUsers()
+      await fetchDeletedUsers()
+    } catch (error) {
+      console.error('Error permanently deleting user:', error)
+      alert(error.message || '영구 삭제 중 오류가 발생했습니다')
     }
   }
 
@@ -433,12 +495,21 @@ function AdminUsersPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <button
-                          onClick={() => handleRestoreUser(user.user_id, user.username)}
-                          className="text-sm text-green-600 hover:text-green-800"
-                        >
-                          복구
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleRestoreUser(user.user_id, user.username)}
+                            className="text-sm text-green-600 hover:text-green-800"
+                          >
+                            복구
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            onClick={() => handlePermanentDeleteClick(user)}
+                            className="text-sm text-red-600 hover:text-red-800 font-medium"
+                          >
+                            영구 삭제
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -494,6 +565,75 @@ function AdminUsersPage() {
               onClick={handleRoleChange}
             >
               변경
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Permanent Delete Confirmation Modal */}
+      <Modal
+        isOpen={permanentDeleteModalOpen}
+        onClose={() => {
+          setPermanentDeleteModalOpen(false)
+          setPermanentDeleteConfirmText('')
+        }}
+        title="⚠️ 영구 삭제 확인"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border-2 border-red-200 p-4 rounded-lg">
+            <p className="text-red-800 font-bold text-lg mb-2">
+              ⚠️ 위험: 이 작업은 되돌릴 수 없습니다!
+            </p>
+            <p className="text-red-700 text-sm">
+              <strong>{selectedUser?.username}</strong> 회원의 모든 데이터가 영구적으로 삭제됩니다.
+            </p>
+          </div>
+
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-sm font-semibold text-gray-800 mb-2">삭제될 데이터:</p>
+            <ul className="text-sm text-gray-700 space-y-1">
+              <li>✗ 회원 계정 정보</li>
+              <li>✗ 작성한 게시글 및 댓글</li>
+              <li>✗ 투표 기록</li>
+              <li>✗ 모임 참여 기록</li>
+              <li>✗ 채팅 메시지</li>
+              <li>✓ 아카이브 기록은 보존됨 (감사 추적용)</li>
+            </ul>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              확인을 위해 회원의 닉네임을 정확히 입력해주세요:
+            </label>
+            <p className="text-sm text-gray-600 mb-2">
+              입력할 닉네임: <strong className="text-red-600">{selectedUser?.username}</strong>
+            </p>
+            <input
+              type="text"
+              value={permanentDeleteConfirmText}
+              onChange={(e) => setPermanentDeleteConfirmText(e.target.value)}
+              placeholder={selectedUser?.username}
+              className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPermanentDeleteModalOpen(false)
+                setPermanentDeleteConfirmText('')
+              }}
+            >
+              취소
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handlePermanentDeleteConfirm}
+              disabled={permanentDeleteConfirmText !== selectedUser?.username}
+            >
+              영구 삭제 실행
             </Button>
           </div>
         </div>
