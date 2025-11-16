@@ -56,13 +56,23 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               cacheableResponse: {
-                statuses: [0, 200],
-                // Only cache responses with proper Content-Type for images
-                headers: {
-                  'content-type': /^image\//
-                }
+                statuses: [0, 200]
               },
-              networkTimeoutSeconds: 10
+              networkTimeoutSeconds: 10,
+              // Use plugin to validate Content-Type before caching
+              plugins: [
+                {
+                  cacheWillUpdate: async ({ response }) => {
+                    // Only cache if Content-Type starts with 'image/'
+                    const contentType = response.headers.get('content-type')
+                    if (contentType && contentType.startsWith('image/')) {
+                      return response
+                    }
+                    // Don't cache non-image responses
+                    return null
+                  }
+                }
+              ]
             }
           }
         ],
