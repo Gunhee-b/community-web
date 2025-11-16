@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
@@ -70,15 +70,60 @@ function MeetingDetailPage() {
   } = useImageUpload({ bucket: 'meeting-images', maxSize: 5 * 1024 * 1024 })
 
   const [editCroppedAreaPixels, setEditCroppedAreaPixels] = useState(null)
+  const [shouldDeleteImage, setShouldDeleteImage] = useState(false) // Track if user wants to delete image
 
   // Fixed size and quality
   const editImageSize = 1200
   const editImageQuality = 85
 
-  // Fetch meeting data function for refetching
-  const refetchMeetingData = async () => {
+  // Fetch meeting data - memoized to prevent infinite loops
+  const fetchMeetingData = useCallback(async () => {
+    try {
+      // Fetch meeting details
+      const { data: meetingData, error: meetingError } = await supabase
+        .from('offline_meetings')
+        .select('*, host:users!host_id(username)')
+        .eq('id', id)
+        .single()
+
+      if (meetingError) {
+        console.error('Error fetching meeting:', meetingError)
+      }
+
+      setMeeting(meetingData)
+
+      // Fetch participants
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('meeting_participants')
+        .select('*, user:users(username)')
+        .eq('meeting_id', id)
+        .is('cancelled_at', null)
+
+      if (participantsError) {
+        console.error('Error fetching participants:', participantsError)
+      }
+
+      // Only check participant status if user is logged in
+      if (isLoggedIn) {
+        const isUserParticipant = participantsData?.some((p) => p.user_id === user?.id) || false
+
+        setParticipants(participantsData || [])
+        setIsParticipant(isUserParticipant)
+      } else {
+        setParticipants(participantsData || [])
+        setIsParticipant(false)
+      }
+    } catch (error) {
+      console.error('Error fetching meeting:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [id, isLoggedIn, user?.id])
+
+  // Refetch meeting data function for refetching (memoized)
+  const refetchMeetingData = useCallback(async () => {
     await fetchMeetingData()
-  }
+  }, [fetchMeetingData])
 
   // Use custom hooks for chat and participants
   const {
@@ -128,51 +173,6 @@ function MeetingDetailPage() {
     }
   }, [id, user?.id, addNotification])
 
-
-  const fetchMeetingData = async () => {
-    try {
-      // Fetch meeting details
-      const { data: meetingData, error: meetingError } = await supabase
-        .from('offline_meetings')
-        .select('*, host:users!host_id(username)')
-        .eq('id', id)
-        .single()
-
-      if (meetingError) {
-        console.error('Error fetching meeting:', meetingError)
-      }
-
-      setMeeting(meetingData)
-
-      // Fetch participants
-      const { data: participantsData, error: participantsError } = await supabase
-        .from('meeting_participants')
-        .select('*, user:users(username)')
-        .eq('meeting_id', id)
-        .is('cancelled_at', null)
-
-      if (participantsError) {
-        console.error('Error fetching participants:', participantsError)
-      }
-
-      // Only check participant status if user is logged in
-      if (isLoggedIn) {
-        const isUserParticipant = participantsData?.some((p) => p.user_id === user.id) || false
-
-        setParticipants(participantsData || [])
-        setIsParticipant(isUserParticipant)
-      } else {
-        setParticipants(participantsData || [])
-        setIsParticipant(false)
-      }
-    } catch (error) {
-      console.error('Error fetching meeting:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-
   const handleJoin = async () => {
     const result = await joinMeeting()
 
@@ -213,6 +213,7 @@ function MeetingDetailPage() {
 
   const handleEditImageChange = (e) => {
     handleEditImageSelect(e)
+    setShouldDeleteImage(false) // Reset delete flag when new image is selected
   }
 
   const handleEditImageAdjustConfirm = (cropPixels) => {
@@ -238,6 +239,7 @@ function MeetingDetailPage() {
 
     // Reset image state for edit modal
     resetEditImage()
+    setShouldDeleteImage(false) // Reset delete flag when opening modal
     // Note: We'll handle existing image preview in the modal render
 
     openEditModal()
@@ -269,18 +271,23 @@ function MeetingDetailPage() {
             editImageQuality / 100
           )
         } else {
-          // No crop data - convert original image to blob with resize
-          const response = await fetch(editImagePreview)
-          const blob = await response.blob()
+          console.log('Using original image without crop for edit')
 
           // Create a simple resize without crop
           const img = new Image()
           img.src = editImagePreview
-          await new Promise((resolve) => { img.onload = resolve })
+
+          // Wait for image to load
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+          })
 
           const canvas = document.createElement('canvas')
           let width = img.width
           let height = img.height
+
+          console.log('Original image dimensions:', width, 'x', height)
 
           // Maintain aspect ratio
           if (width > editImageSize || height > editImageSize) {
@@ -293,23 +300,51 @@ function MeetingDetailPage() {
             }
           }
 
+          // Round to integers to avoid canvas rendering issues
+          width = Math.floor(width)
+          height = Math.floor(height)
+
+          console.log('Resized image dimensions:', width, 'x', height)
+
           canvas.width = width
           canvas.height = height
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, width, height)
 
-          croppedBlob = await new Promise((resolve) => {
-            canvas.toBlob(resolve, 'image/jpeg', editImageQuality / 100)
-          })
+          // Convert canvas to DataURL then to Blob
+          const dataUrl = canvas.toDataURL('image/jpeg', editImageQuality / 100)
+
+          // Convert DataURL to Blob
+          const response = await fetch(dataUrl)
+          croppedBlob = await response.blob()
+
+          console.log('Edit: Canvas to blob conversion complete')
+        }
+
+        console.log('Edit: Blob created, size:', croppedBlob?.size, 'bytes, type:', croppedBlob?.type)
+
+        if (!croppedBlob || croppedBlob.size === 0) {
+          throw new Error('이미지 처리 중 오류가 발생했습니다 (빈 파일)')
         }
 
         const fileExt = 'jpg' // Always use jpg for cropped images
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
         const filePath = `${fileName}`
 
-        const { error: uploadError } = await supabase.storage
+        console.log('Edit: Attempting to upload to Supabase Storage...')
+        console.log('Edit: Blob size:', croppedBlob.size, 'bytes')
+
+        // Convert Blob to File for better compatibility
+        const file = new File([croppedBlob], fileName, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        })
+
+        console.log('Edit: Converted to File:', file.name, file.size, 'bytes')
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('meeting-images')
-          .upload(filePath, croppedBlob, {
+          .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false,
             contentType: 'image/jpeg'
@@ -317,15 +352,24 @@ function MeetingDetailPage() {
 
         if (uploadError) {
           console.error('Error uploading image:', uploadError)
-          throw new Error('이미지 업로드 중 오류가 발생했습니다')
+          throw new Error('이미지 업로드 중 오류가 발생했습니다: ' + uploadError.message)
         }
 
+        console.log('Upload successful, file path:', uploadData?.path || filePath)
+
         // Get public URL
-        const { data: { publicUrl } } = supabase.storage
+        const { data } = supabase.storage
           .from('meeting-images')
           .getPublicUrl(filePath)
 
-        imageUrl = publicUrl
+        imageUrl = data.publicUrl
+        console.log('Generated public URL:', imageUrl)
+
+        // Verify the URL is valid
+        if (!imageUrl || !imageUrl.includes('meeting-images')) {
+          console.error('Invalid public URL generated:', imageUrl)
+          throw new Error('이미지 URL 생성에 실패했습니다')
+        }
 
         // Delete old image if exists
         if (meeting.image_url) {
@@ -334,13 +378,14 @@ function MeetingDetailPage() {
             .from('meeting-images')
             .remove([oldImagePath])
         }
-      } else if (!editImagePreview && meeting.image_url) {
-        // If image was removed (no preview and there was an image)
+      } else if (shouldDeleteImage && meeting.image_url) {
+        // If user explicitly deleted the image
         const oldImagePath = meeting.image_url.split('/').pop()
         await supabase.storage
           .from('meeting-images')
           .remove([oldImagePath])
         imageUrl = null
+        console.log('Old image deleted from storage')
       }
 
       console.log('Updating meeting with:', {
@@ -477,7 +522,7 @@ function MeetingDetailPage() {
       }, 1000)
       return () => clearTimeout(timeoutId)
     }
-  }, [chats, isParticipant, markMessagesAsRead])
+  }, [chats.length, isParticipant, markMessagesAsRead]) // Use chats.length to avoid re-running on every message change
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0]
@@ -567,6 +612,13 @@ function MeetingDetailPage() {
                 src={meeting.image_url}
                 alt={meeting.location}
                 className="w-full h-64 object-cover rounded-lg mb-4"
+                onError={(e) => {
+                  console.error('Failed to load meeting image:', meeting.image_url)
+                  e.target.style.display = 'none'
+                }}
+                onLoad={() => {
+                  console.log('Meeting image loaded successfully:', meeting.image_url)
+                }}
               />
             )}
 
@@ -1177,7 +1229,8 @@ function MeetingDetailPage() {
               모임 사진 (선택사항)
             </label>
             <div className="mt-1">
-              {editImagePreview || meeting.image_url ? (
+              {/* Show image only if there's a new preview OR (existing image exists AND not marked for deletion) */}
+              {editImagePreview || (meeting.image_url && !shouldDeleteImage) ? (
                 <div className="relative">
                   <img
                     src={editImagePreview || meeting.image_url}
@@ -1186,7 +1239,24 @@ function MeetingDetailPage() {
                   />
                   <button
                     type="button"
-                    onClick={removeEditImage}
+                    onClick={() => {
+                      console.log('Delete image button clicked')
+                      console.log('Current state - editImagePreview:', !!editImagePreview, 'editImageFile:', !!editImageFile, 'shouldDeleteImage:', shouldDeleteImage, 'meeting.image_url:', !!meeting.image_url)
+
+                      if (editImagePreview) {
+                        // If there's a new image selected, just remove the preview
+                        console.log('Removing newly selected image preview')
+                        removeEditImage()
+                      }
+
+                      if (meeting.image_url && !editImagePreview) {
+                        // If showing existing image (not a new preview), mark for deletion
+                        console.log('Marking existing image for deletion')
+                        setShouldDeleteImage(true)
+                      }
+
+                      console.log('After - shouldDeleteImage:', true)
+                    }}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

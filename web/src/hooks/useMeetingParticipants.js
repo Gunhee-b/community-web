@@ -61,7 +61,7 @@ export const useMeetingParticipants = (
       toast.error('참가 신청 중 오류가 발생했습니다')
       return { success: false, error }
     }
-  }, [meetingId, meeting, user, refetchMeetingData, toast])
+  }, [meetingId, meeting?.status, meeting?.kakao_openchat_link, user?.id, refetchMeetingData, toast])
 
   /**
    * 모임 확정
@@ -89,7 +89,7 @@ export const useMeetingParticipants = (
       toast.error(error.message)
       return { success: false, error }
     }
-  }, [meetingId, user, refetchMeetingData, toast])
+  }, [meetingId, user?.id, refetchMeetingData, toast])
 
   /**
    * 모임 확정 취소
@@ -117,7 +117,7 @@ export const useMeetingParticipants = (
       toast.error(error.message)
       return { success: false, error }
     }
-  }, [meetingId, user, refetchMeetingData, toast])
+  }, [meetingId, user?.id, refetchMeetingData, toast])
 
   /**
    * 모임 나가기
@@ -172,7 +172,7 @@ export const useMeetingParticipants = (
       toast.error(error.message)
       return { success: false, error }
     }
-  }, [meetingId, user, addNotification, toast])
+  }, [meetingId, user?.id, addNotification, toast])
 
   /**
    * 출석 체크
@@ -200,7 +200,7 @@ export const useMeetingParticipants = (
         return { success: false, error }
       }
     },
-    [user, refetchMeetingData, toast]
+    [user?.id, refetchMeetingData, toast]
   )
 
   return {

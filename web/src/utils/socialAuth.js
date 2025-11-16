@@ -164,70 +164,45 @@ export const handleOAuthCallback = async () => {
  */
 export const handleKakaoCallback = async (code) => {
   try {
-    const KAKAO_CLIENT_ID = import.meta.env.VITE_KAKAO_CLIENT_ID
-    const KAKAO_CLIENT_SECRET = import.meta.env.VITE_KAKAO_CLIENT_SECRET
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
     const REDIRECT_URI = await getRedirectUrl()
 
     console.log('Kakao callback - Redirect URI:', REDIRECT_URI)
     console.log('Kakao callback - Code:', code)
 
-    // Exchange code for token
-    const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      throw new Error('Supabase configuration is missing')
+    }
+
+    // Call Supabase Edge Function to handle token exchange and user creation
+    const edgeFunctionUrl = `${SUPABASE_URL}/functions/v1/kakao-auth`
+
+    const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: KAKAO_CLIENT_ID,
-        client_secret: KAKAO_CLIENT_SECRET,
+      body: JSON.stringify({
+        code: code,
         redirect_uri: REDIRECT_URI,
-        code,
       }),
     })
 
-    const tokenData = await tokenResponse.json()
+    const data = await response.json()
 
-    console.log('Kakao token response:', tokenData)
+    console.log('Kakao auth response:', data)
 
-    if (!tokenResponse.ok) {
-      console.error('Kakao token error:', tokenData)
-      throw new Error(tokenData.error_description || tokenData.error || 'Failed to get Kakao token')
-    }
-
-    // Get user info
-    const userResponse = await fetch('https://kapi.kakao.com/v2/user/me', {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-      },
-    })
-
-    const userData = await userResponse.json()
-
-    if (!userResponse.ok) {
-      throw new Error('Failed to get Kakao user info')
-    }
-
-    // Find or create user in our database
-    const { data, error } = await supabase.rpc('find_or_create_social_user', {
-      p_provider: 'kakao',
-      p_provider_user_id: userData.id.toString(),
-      p_email: userData.kakao_account?.email,
-      p_username: userData.properties?.nickname,
-      p_avatar_url: userData.properties?.profile_image,
-      p_display_name: userData.properties?.nickname,
-    })
-
-    if (error) throw error
-
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to create user')
+    if (!data.success || !data.data) {
+      console.error('Kakao auth error:', data.error)
+      throw new Error(data.error || 'Kakao 인증에 실패했습니다')
     }
 
     return {
       success: true,
-      user: data.user,
-      isNew: data.is_new,
+      user: data.data.user,
+      isNew: data.data.is_new || false,
     }
   } catch (error) {
     console.error('Kakao callback error:', error)

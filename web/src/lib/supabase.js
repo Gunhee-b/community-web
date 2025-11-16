@@ -12,11 +12,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    }
   }
+  // Removed global headers to allow Storage API to set appropriate Content-Type
+  // for file uploads (multipart/form-data or binary)
 })

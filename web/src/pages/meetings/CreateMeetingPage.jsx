@@ -90,25 +90,10 @@ function CreateMeetingPage() {
 
       setImageFile(file)
 
-      // Create preview and get dimensions
+      // Create preview
       const reader = new FileReader()
       reader.onloadend = () => {
         setImagePreview(reader.result)
-
-        // Get image dimensions
-        const img = new Image()
-        img.onload = () => {
-          // Suggest optimal size based on image dimensions
-          const maxDimension = Math.max(img.width, img.height)
-          if (maxDimension > 1200) {
-            setImageSize(1200)
-          } else if (maxDimension > 800) {
-            setImageSize(800)
-          } else {
-            setImageSize(maxDimension)
-          }
-        }
-        img.src = reader.result
       }
       reader.readAsDataURL(file)
       setError('')
@@ -215,6 +200,7 @@ function CreateMeetingPage() {
 
         // If crop data exists, use it. Otherwise, use original image with resize only
         if (croppedAreaPixels) {
+          console.log('Using cropped image with pixels:', croppedAreaPixels)
           croppedBlob = await getCroppedImg(
             imagePreview,
             croppedAreaPixels,
@@ -223,18 +209,23 @@ function CreateMeetingPage() {
             imageQuality / 100
           )
         } else {
-          // No crop data - convert original image to blob with resize
-          const response = await fetch(imagePreview)
-          const blob = await response.blob()
+          console.log('Using original image without crop')
 
           // Create a simple resize without crop
           const img = new Image()
           img.src = imagePreview
-          await new Promise((resolve) => { img.onload = resolve })
+
+          // Wait for image to load
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+          })
 
           const canvas = document.createElement('canvas')
           let width = img.width
           let height = img.height
+
+          console.log('Original image dimensions:', width, 'x', height)
 
           // Maintain aspect ratio
           if (width > imageSize || height > imageSize) {
@@ -247,39 +238,86 @@ function CreateMeetingPage() {
             }
           }
 
+          // Round to integers to avoid canvas rendering issues
+          width = Math.floor(width)
+          height = Math.floor(height)
+
+          console.log('Resized image dimensions:', width, 'x', height)
+
           canvas.width = width
           canvas.height = height
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, width, height)
 
-          croppedBlob = await new Promise((resolve) => {
-            canvas.toBlob(resolve, 'image/jpeg', imageQuality / 100)
-          })
+          // Convert canvas to DataURL then to Blob
+          const dataUrl = canvas.toDataURL('image/jpeg', imageQuality / 100)
+
+          // Convert DataURL to Blob
+          const response = await fetch(dataUrl)
+          croppedBlob = await response.blob()
+
+          console.log('Canvas to blob conversion complete')
+        }
+
+        console.log('Blob created, size:', croppedBlob?.size, 'bytes, type:', croppedBlob?.type)
+
+        if (!croppedBlob || croppedBlob.size === 0) {
+          throw new Error('이미지 처리 중 오류가 발생했습니다 (빈 파일)')
         }
 
         const fileExt = 'jpg' // Always use jpg for cropped images
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
         const filePath = `${fileName}`
 
-        const { error: uploadError } = await supabase.storage
+        console.log('Attempting to upload to Supabase Storage...')
+        console.log('File path:', filePath)
+        console.log('Blob size:', croppedBlob.size, 'bytes')
+        console.log('Blob type:', croppedBlob.type)
+
+        // Convert Blob to File for better compatibility
+        const file = new File([croppedBlob], fileName, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        })
+
+        console.log('Converted to File:', file.name, file.size, 'bytes')
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('meeting-images')
-          .upload(filePath, croppedBlob, {
+          .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false,
             contentType: 'image/jpeg'
           })
 
+        console.log('Upload response:', JSON.stringify({ data: uploadData, error: uploadError }, null, 2))
+
         if (uploadError) {
           console.error('Error uploading image:', uploadError)
-          throw new Error('이미지 업로드 중 오류가 발생했습니다')
+          console.error('Upload error details:', JSON.stringify(uploadError, null, 2))
+          throw new Error('이미지 업로드 중 오류가 발생했습니다: ' + uploadError.message)
         }
 
+        if (!uploadData || !uploadData.path) {
+          console.error('Upload succeeded but no path returned:', uploadData)
+          throw new Error('이미지 업로드 응답이 올바르지 않습니다')
+        }
+
+        console.log('Upload successful, file path:', uploadData.path)
+
         // Get public URL
-        const { data: { publicUrl } } = supabase.storage
+        const { data } = supabase.storage
           .from('meeting-images')
           .getPublicUrl(filePath)
 
-        imageUrl = publicUrl
+        imageUrl = data.publicUrl
+        console.log('Generated public URL:', imageUrl)
+
+        // Verify the URL is valid
+        if (!imageUrl || !imageUrl.includes('meeting-images')) {
+          console.error('Invalid public URL generated:', imageUrl)
+          throw new Error('이미지 URL 생성에 실패했습니다')
+        }
       }
 
       // Prepare meeting data based on meeting type

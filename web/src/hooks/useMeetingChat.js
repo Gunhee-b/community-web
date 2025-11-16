@@ -59,10 +59,15 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
   const fetchReadReceipts = useCallback(async () => {
     if (!meetingId || !user) return
 
+    // Get chat IDs from current chats ref to avoid dependency on chats state
+    const chatIds = chatsRef.current.map(chat => chat.id)
+
+    if (chatIds.length === 0) return
+
     const { data, error } = await supabase
       .from('meeting_chat_read_receipts')
       .select('chat_id, user_id')
-      .in('chat_id', chats.map(chat => chat.id))
+      .in('chat_id', chatIds)
 
     if (error) {
       console.error('Error fetching read receipts:', error)
@@ -79,7 +84,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
     })
 
     setReadReceipts(receiptsMap)
-  }, [meetingId, user, chats])
+  }, [meetingId, user?.id]) // Use user.id instead of user object to avoid unnecessary re-renders
 
   /**
    * 입력 중 상태 업데이트
@@ -105,7 +110,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
     } catch (error) {
       console.error('Error updating typing indicator:', error)
     }
-  }, [meetingId, user, isParticipant])
+  }, [meetingId, user?.id, user?.username, isParticipant])
 
   /**
    * 입력 중 상태 제거
@@ -122,7 +127,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
     } catch (error) {
       console.error('Error removing typing indicator:', error)
     }
-  }, [meetingId, user])
+  }, [meetingId, user?.id])
 
   /**
    * 입력 중 상태 가져오기
@@ -143,7 +148,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
     }
 
     setTypingUsers(data || [])
-  }, [meetingId, user])
+  }, [meetingId, user?.id])
 
   /**
    * 새 메시지 확인 및 알림 생성
@@ -185,7 +190,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
 
       setChats(data)
     }
-  }, [meetingId, user, addNotification])
+  }, [meetingId, user?.id, addNotification])
 
   /**
    * 실시간 구독 설정
@@ -242,7 +247,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
       console.log('Cleaning up realtime subscription')
       supabase.removeChannel(channel)
     }
-  }, [meetingId, user, addNotification, fetchChats])
+  }, [meetingId, user?.id, addNotification, fetchChats])
 
   /**
    * 이미지 업로드
@@ -256,7 +261,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
       const filePath = `chat-images/${meetingId}/${fileName}`
 
-      const { error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('meeting-images')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -265,13 +270,24 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
 
       if (uploadError) {
         console.error('Error uploading image:', uploadError)
-        throw new Error('이미지 업로드 중 오류가 발생했습니다')
+        throw new Error('이미지 업로드 중 오류가 발생했습니다: ' + uploadError.message)
       }
 
+      console.log('Chat image upload successful, file path:', uploadData?.path || filePath)
+
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data } = supabase.storage
         .from('meeting-images')
         .getPublicUrl(filePath)
+
+      const publicUrl = data.publicUrl
+      console.log('Generated public URL for chat image:', publicUrl)
+
+      // Verify the URL is valid
+      if (!publicUrl || !publicUrl.includes('meeting-images')) {
+        console.error('Invalid public URL generated for chat image:', publicUrl)
+        throw new Error('이미지 URL 생성에 실패했습니다')
+      }
 
       return publicUrl
     } catch (error) {
@@ -339,7 +355,7 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
     } catch (error) {
       console.error('Error marking messages as read:', error)
     }
-  }, [meetingId, user, isParticipant, fetchReadReceipts])
+  }, [meetingId, user?.id, isParticipant, fetchReadReceipts])
 
   /**
    * 입력 중 핸들러
@@ -426,25 +442,22 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
         clearTimeout(typingTimeoutRef.current)
       }
     }
-  }, [
-    meetingId,
-    user,
-    isParticipant,
-    subscribeToChats,
-    fetchChatsWithNotification,
-    fetchChats,
-    fetchTypingIndicators,
-    fetchReadReceipts,
-    markMessagesAsRead,
-    removeTypingIndicator
-  ])
+    // Only re-subscribe when meetingId, user, or isParticipant changes
+    // Other functions are already memoized with useCallback and depend on these values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingId, user?.id, isParticipant])
 
-  // Fetch read receipts whenever chats change
+  // Fetch read receipts whenever chats change (debounced to avoid infinite loop)
   useEffect(() => {
-    if (chats.length > 0) {
-      fetchReadReceipts()
+    if (chats.length > 0 && isParticipant) {
+      // Use a timeout to debounce and avoid rapid re-fetches
+      const timeoutId = setTimeout(() => {
+        fetchReadReceipts()
+      }, 500)
+
+      return () => clearTimeout(timeoutId)
     }
-  }, [chats, fetchReadReceipts])
+  }, [chats.length, isParticipant, fetchReadReceipts]) // Use chats.length instead of chats to avoid reference changes
 
   return {
     chats,

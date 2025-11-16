@@ -56,7 +56,11 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               cacheableResponse: {
-                statuses: [0, 200]
+                statuses: [0, 200],
+                // Only cache responses with proper Content-Type for images
+                headers: {
+                  'content-type': /^image\//
+                }
               },
               networkTimeoutSeconds: 10
             }
