@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  APP_NAME: 'INGK Community',
+  APP_NAME: 'Rezom Community',
   APP_VERSION: '1.0.0',
   API_TIMEOUT: 30000, // 30 seconds
   MAX_IMAGE_SIZE: 5 * 1024 * 1024, // 5MB

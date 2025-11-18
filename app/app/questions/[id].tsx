@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,25 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { TopNavBar } from '@/components/navigation';
 import { useAppStore } from '@/store';
 import { theme } from '@/constants/theme';
+import {
+  fetchQuestionById,
+  fetchAnswersByQuestion,
+  submitAnswer as apiSubmitAnswer
+} from '@/services/api/questions';
+import { AuthService } from '@/services/auth';
+import { supabase } from '@/services/supabase';
+import type { Question, Answer } from '@/types';
 
 /**
  * QuestionDetailScreen
@@ -33,73 +45,357 @@ export default function QuestionDetailScreen() {
   const { theme: appTheme } = useAppStore();
   const isDark = appTheme === 'dark';
 
+  // State management
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Answer form state
   const [showAnswerForm, setShowAnswerForm] = useState(false);
   const [answer, setAnswer] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [imageUris, setImageUris] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // TODO: Replace with API call
-  const question = {
-    id: Number(id),
-    question: '오늘 가장 기억에 남는 순간은 무엇인가요?',
-    date: '11월 8일',
-    answerCount: 24,
-  };
+  // Edit state
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
 
-  // TODO: Replace with API call
-  const answers = [
-    {
-      id: 1,
-      user: '김민수',
-      avatar: '김',
-      answer: '오늘 아침에 본 일출이 정말 아름다웠어요. 맑은 하늘과 함께 시작하는 하루가 기분 좋았습니다.',
-      time: '오전 8:30',
-      images: [],
-    },
-    {
-      id: 2,
-      user: '이지은',
-      avatar: '이',
-      answer: '친구와 오랜만에 만나서 이야기 나눈 시간이 가장 기억에 남아요. 서로의 근황을 공유하며 즐거운 시간을 보냈습니다.',
-      time: '오전 10:15',
-      images: [],
-    },
-    {
-      id: 3,
-      user: '박준영',
-      avatar: '박',
-      answer: '업무 프로젝트를 성공적으로 마무리한 순간! 팀원들과 함께 고생한 보람이 있었어요.',
-      time: '오후 2:45',
-      images: [],
-    },
-    {
-      id: 4,
-      user: '최수진',
-      avatar: '최',
-      answer: '저녁에 본 노을이 정말 환상적이었어요. 하늘이 분홍빛과 주황빛으로 물들어서 사진도 찍었답니다.',
-      time: '오후 6:20',
-      images: ['sunset1', 'sunset2'],
-    },
-  ];
+  // Fetch question and answers on mount
+  useEffect(() => {
+    fetchQuestionData();
+    loadCurrentUser();
+  }, [id]);
 
-  const handleSubmitAnswer = () => {
-    if (answer.trim()) {
-      // TODO: API call to submit answer
-      console.log('Submit answer:', answer, images);
-      setShowAnswerForm(false);
-      setAnswer('');
-      setImages([]);
+  // Load current user
+  const loadCurrentUser = async () => {
+    try {
+      const user = await AuthService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error loading user:', error);
     }
   };
 
-  const handleImageUpload = () => {
-    if (images.length < 2) {
-      // TODO: Implement image picker
-      setImages([...images, 'new-image']);
+  // Fetch question and answers data
+  const fetchQuestionData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch question details
+      const { data: questionData, error: questionError } = await fetchQuestionById(id as string);
+
+      if (questionError) {
+        throw new Error('질문 정보를 불러올 수 없습니다');
+      }
+
+      if (questionData) {
+        setQuestion(questionData);
+      }
+
+      // Fetch public answers
+      const { data: answersData, error: answersError } = await fetchAnswersByQuestion(
+        id as string,
+        true // publicOnly
+      );
+
+      if (answersError) {
+        console.error('Error fetching answers:', answersError);
+      } else if (answersData) {
+        setAnswers(answersData);
+      }
+    } catch (err: any) {
+      console.error('Error fetching question:', err);
+      setError(err.message || '질문 정보를 불러오는 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Image picker
+  const handleImageUpload = async () => {
+    if (imageUris.length >= 2) {
+      Alert.alert('알림', '이미지는 최대 2장까지 업로드할 수 있습니다.');
+      return;
+    }
+
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert('권한 필요', '갤러리 접근 권한이 필요합니다.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUris([...imageUris, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('오류', '이미지를 선택할 수 없습니다.');
     }
   };
 
   const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+    setImageUris(imageUris.filter((_, i) => i !== index));
+  };
+
+  // Upload image to Supabase Storage
+  const uploadImageToStorage = async (uri: string, index: number): Promise<string | null> => {
+    try {
+      // Read file as base64
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: 'base64',
+      });
+
+      // Convert base64 to ArrayBuffer
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+
+      // Generate unique filename
+      const fileExt = uri.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}_${index}.${fileExt}`;
+      const filePath = `${currentUser.id}/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('answer-images')
+        .upload(filePath, byteArray, {
+          contentType: 'image/jpeg',
+          upsert: false,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('answer-images')
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
+  // Submit answer
+  const handleSubmitAnswer = async () => {
+    if (!currentUser) {
+      Alert.alert('로그인 필요', '답변을 작성하려면 로그인이 필요합니다.');
+      return;
+    }
+
+    if (!answer.trim()) {
+      Alert.alert('알림', '답변 내용을 입력해주세요.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      // Upload images if any
+      let imageUrl1 = null;
+      let imageUrl2 = null;
+
+      if (imageUris.length > 0) {
+        setUploading(true);
+        imageUrl1 = await uploadImageToStorage(imageUris[0], 0);
+
+        if (imageUris.length > 1) {
+          imageUrl2 = await uploadImageToStorage(imageUris[1], 1);
+        }
+        setUploading(false);
+      }
+
+      if (editingAnswerId) {
+        // Update existing answer
+        const { error } = await supabase
+          .from('question_answers')
+          .update({
+            content: answer.trim(),
+            image_url: imageUrl1 || null,
+            image_url_2: imageUrl2 || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingAnswerId);
+
+        if (error) throw error;
+
+        Alert.alert('성공', '답변이 수정되었습니다!');
+      } else {
+        // Submit new answer
+        const answerData = {
+          question_id: id as string,
+          user_id: currentUser.id,
+          content: answer.trim(),
+          is_public: true,
+          image_url: imageUrl1 || undefined,
+          image_url_2: imageUrl2 || undefined,
+        };
+
+        const { error } = await apiSubmitAnswer(answerData);
+
+        if (error) throw error;
+
+        Alert.alert('성공', '답변이 등록되었습니다!');
+      }
+
+      // Reset form
+      setShowAnswerForm(false);
+      setAnswer('');
+      setImageUris([]);
+      setEditingAnswerId(null);
+
+      // Refetch answers
+      await fetchQuestionData();
+    } catch (err: any) {
+      console.error('Error submitting answer:', err);
+      Alert.alert('오류', err.message || '답변 등록 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
+      setUploading(false);
+    }
+  };
+
+  // Edit answer
+  const handleEditAnswer = (ans: Answer) => {
+    setEditingAnswerId(ans.id);
+    setAnswer(ans.content || ans.answer_text || '');
+    setImageUris([]); // Images can't be edited for simplicity
+    setShowAnswerForm(true);
+  };
+
+  // Delete answer
+  const handleDeleteAnswer = (answerId: string) => {
+    Alert.alert(
+      '답변 삭제',
+      '정말로 이 답변을 삭제하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('question_answers')
+                .delete()
+                .eq('id', answerId);
+
+              if (error) throw error;
+
+              Alert.alert('성공', '답변이 삭제되었습니다.');
+              await fetchQuestionData();
+            } catch (err: any) {
+              console.error('Error deleting answer:', err);
+              Alert.alert('오류', '답변 삭제 중 오류가 발생했습니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <TopNavBar title="질문 상세" showBackButton />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, isDark && styles.textDark]}>
+            질문 정보를 불러오는 중...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (error || !question) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <TopNavBar title="질문 상세" showBackButton />
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={isDark ? '#8E8E93' : '#6B7280'}
+          />
+          <Text style={[styles.errorText, isDark && styles.textDark]}>
+            {error || '질문 정보를 찾을 수 없습니다'}
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchQuestionData}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.retryButtonText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Format question date
+  const questionDate = new Date(question.scheduled_date || question.created_at);
+  const dateStr = questionDate.toLocaleDateString('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+  });
+
+  // 질문 제목 가져오기
+  const getQuestionTitle = () => {
+    // 새로운 필드명 우선
+    if (question.title) {
+      return question.title;
+    }
+    // Legacy 필드명
+    if (question.question_title) {
+      return question.question_title;
+    }
+    // 제목이 없으면 짧은 설명 사용
+    if (question.short_description) {
+      return question.short_description.length > 50
+        ? question.short_description.substring(0, 50) + '...'
+        : question.short_description;
+    }
+    // 그것도 없으면 내용에서 추출
+    const contentText = question.content || question.question_text || '';
+    if (!contentText) {
+      return '질문';
+    }
+    return contentText.length > 50
+      ? contentText.substring(0, 50) + '...'
+      : contentText;
+  };
+
+  // 질문 상세 내용 가져오기
+  const getQuestionContent = () => {
+    return question.content || question.question_text || '';
+  };
+
+  // 짧은 설명 가져오기
+  const getShortDescription = () => {
+    return question.short_description || '';
   };
 
   return (
@@ -120,13 +416,30 @@ export default function QuestionDetailScreen() {
           >
             <View style={styles.questionDate}>
               <Ionicons name="calendar-outline" size={16} color="white" />
-              <Text style={styles.questionDateText}>{question.date}</Text>
+              <Text style={styles.questionDateText}>{dateStr}</Text>
             </View>
-            <Text style={styles.questionText}>{question.question}</Text>
+
+            {/* 질문 제목 */}
+            <Text style={styles.questionTitle}>{getQuestionTitle()}</Text>
+
+            {/* 짧은 설명 (있으면 표시) */}
+            {getShortDescription() && (
+              <Text style={styles.questionShortDescription}>
+                {getShortDescription()}
+              </Text>
+            )}
+
+            {/* 상세 내용 (있으면 표시) */}
+            {getQuestionContent() && (
+              <Text style={styles.questionDetailText}>
+                {getQuestionContent()}
+              </Text>
+            )}
+
             <View style={styles.questionAnswerCount}>
               <Ionicons name="chatbubble-outline" size={18} color="white" />
               <Text style={styles.questionAnswerCountText}>
-                {question.answerCount}개의 답변
+                {answers.length}개의 답변
               </Text>
             </View>
           </LinearGradient>
@@ -137,49 +450,111 @@ export default function QuestionDetailScreen() {
           <Text style={[styles.answersTitle, isDark && styles.answersTitleDark]}>
             모든 답변
           </Text>
-          {answers.map((ans) => (
-            <View
-              key={ans.id}
-              style={[styles.answerCard, isDark && styles.answerCardDark]}
-            >
-              <View style={styles.answerHeader}>
-                <LinearGradient
-                  colors={['#007AFF', '#5856D6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.answerAvatar}
-                >
-                  <Text style={styles.answerAvatarText}>{ans.avatar}</Text>
-                </LinearGradient>
-                <View style={styles.answerHeaderRight}>
-                  <View style={styles.answerHeaderTop}>
-                    <Text style={[styles.answerUser, isDark && styles.answerUserDark]}>
-                      {ans.user}
-                    </Text>
-                    <Text style={[styles.answerTime, isDark && styles.answerTimeDark]}>
-                      {ans.time}
-                    </Text>
-                  </View>
-                  <Text style={[styles.answerText, isDark && styles.answerTextDark]}>
-                    {ans.answer}
-                  </Text>
+          {answers.length > 0 ? (
+            answers.map((ans) => {
+              const answerDate = new Date(ans.created_at);
+              const timeStr = answerDate.toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              });
+              const username = ans.user?.username || ans.users?.username || '익명';
+              const answerContent = ans.content || ans.answer_text || '';
+              const isLongAnswer = answerContent.length > 200;
+              const truncatedContent = isLongAnswer
+                ? answerContent.substring(0, 200) + '...'
+                : answerContent;
+
+              const isOwner = currentUser && ans.user_id === currentUser.id;
+
+              return (
+                <View key={ans.id} style={[styles.answerCard, isDark && styles.answerCardDark]}>
+                  <TouchableOpacity
+                    onPress={() => router.push(`/answers/${ans.id}`)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.answerHeader}>
+                      <LinearGradient
+                        colors={['#007AFF', '#5856D6']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.answerAvatar}
+                      >
+                        <Text style={styles.answerAvatarText}>{username[0]}</Text>
+                      </LinearGradient>
+                      <View style={styles.answerHeaderRight}>
+                        <View style={styles.answerHeaderTop}>
+                          <Text style={[styles.answerUser, isDark && styles.answerUserDark]}>
+                            {username}
+                          </Text>
+                          <Text style={[styles.answerTime, isDark && styles.answerTimeDark]}>
+                            {timeStr}
+                          </Text>
+                        </View>
+                        {answerContent && (
+                          <Text style={[styles.answerText, isDark && styles.answerTextDark]}>
+                            {truncatedContent}
+                          </Text>
+                        )}
+                        {isLongAnswer && (
+                          <Text style={styles.readMoreText}>자세히 보기 →</Text>
+                        )}
+                      </View>
+                    </View>
+                    {(ans.image_url || ans.image_url_2) && (
+                      <View style={styles.answerImages}>
+                        {ans.image_url && (
+                          <Image
+                            source={{ uri: ans.image_url }}
+                            style={styles.answerImage}
+                            resizeMode="cover"
+                          />
+                        )}
+                        {ans.image_url_2 && (
+                          <Image
+                            source={{ uri: ans.image_url_2 }}
+                            style={styles.answerImage}
+                            resizeMode="cover"
+                          />
+                        )}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Edit/Delete buttons for owner */}
+                  {isOwner && (
+                    <View style={styles.answerActions}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.editButton]}
+                        onPress={() => handleEditAnswer(ans)}
+                      >
+                        <Ionicons name="create-outline" size={16} color="#007AFF" />
+                        <Text style={styles.editButtonText}>수정</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.deleteButton]}
+                        onPress={() => handleDeleteAnswer(ans.id)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                        <Text style={styles.deleteButtonText}>삭제</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-              </View>
-              {ans.images.length > 0 && (
-                <View style={styles.answerImages}>
-                  {ans.images.map((img, idx) => (
-                    <LinearGradient
-                      key={idx}
-                      colors={['#FB923C', '#EC4899']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.answerImage}
-                    />
-                  ))}
-                </View>
-              )}
+              );
+            })
+          ) : (
+            <View style={[styles.emptyCard, isDark && styles.emptyCardDark]}>
+              <Ionicons
+                name="chatbubble-outline"
+                size={48}
+                color={isDark ? '#636366' : '#9CA3AF'}
+              />
+              <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+                아직 답변이 없습니다
+              </Text>
             </View>
-          ))}
+          )}
         </View>
       </ScrollView>
 
@@ -213,7 +588,7 @@ export default function QuestionDetailScreen() {
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-                답변 작성
+                {editingAnswerId ? '답변 수정' : '답변 작성'}
               </Text>
               <TouchableOpacity onPress={() => setShowAnswerForm(false)}>
                 <Ionicons
@@ -243,36 +618,45 @@ export default function QuestionDetailScreen() {
                   이미지 (최대 2장)
                 </Text>
                 <Text style={[styles.imageUploadCount, isDark && styles.imageUploadCountDark]}>
-                  {images.length}/2
+                  {imageUris.length}/2
                 </Text>
               </View>
               <View style={styles.imageUploadList}>
-                {images.map((img, idx) => (
+                {imageUris.map((uri, idx) => (
                   <View key={idx} style={styles.imageUploadItem}>
-                    <LinearGradient
-                      colors={['#60A5FA', '#A78BFA']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                    <Image
+                      source={{ uri }}
                       style={styles.imageUploadPreview}
+                      resizeMode="cover"
                     />
                     <TouchableOpacity
                       style={styles.imageRemoveButton}
                       onPress={() => removeImage(idx)}
+                      disabled={uploading || submitting}
                     >
                       <Ionicons name="close" size={14} color="white" />
                     </TouchableOpacity>
                   </View>
                 ))}
-                {images.length < 2 && (
+                {imageUris.length < 2 && (
                   <TouchableOpacity
-                    style={[styles.imageUploadButton, isDark && styles.imageUploadButtonDark]}
+                    style={[
+                      styles.imageUploadButton,
+                      isDark && styles.imageUploadButtonDark,
+                      (uploading || submitting) && styles.buttonDisabled,
+                    ]}
                     onPress={handleImageUpload}
+                    disabled={uploading || submitting}
                   >
-                    <Ionicons
-                      name="image-outline"
-                      size={24}
-                      color={isDark ? '#636366' : '#9CA3AF'}
-                    />
+                    {uploading ? (
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                    ) : (
+                      <Ionicons
+                        name="image-outline"
+                        size={24}
+                        color={isDark ? '#636366' : '#9CA3AF'}
+                      />
+                    )}
                   </TouchableOpacity>
                 )}
               </View>
@@ -280,10 +664,15 @@ export default function QuestionDetailScreen() {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[styles.submitButton, submitting && styles.buttonDisabled]}
               onPress={handleSubmitAnswer}
+              disabled={submitting}
             >
-              <Text style={styles.submitButtonText}>답변 제출</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.submitButtonText}>답변 제출</Text>
+              )}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -302,6 +691,72 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+
+  // Loading State
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+
+  // Error State
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  errorText: {
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    marginTop: theme.spacing.md,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+  },
+  textDark: {
+    color: 'white',
+  },
+  textSecondaryDark: {
+    color: '#8E8E93',
+  },
+
+  // Empty State
+  emptyCard: {
+    backgroundColor: 'white',
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    ...theme.shadows.sm,
+  },
+  emptyCardDark: {
+    backgroundColor: '#1C1C1E',
+  },
+  emptyText: {
+    fontSize: theme.fontSize.sm,
+    color: '#9CA3AF',
+  },
+
+  // Button Disabled State
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   // Question Section
@@ -323,6 +778,27 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: 'white',
     opacity: 0.9,
+  },
+  questionTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: 'white',
+    marginBottom: 12,
+    lineHeight: 30,
+  },
+  questionShortDescription: {
+    fontSize: 16,
+    color: 'white',
+    opacity: 0.95,
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  questionDetailText: {
+    fontSize: 15,
+    color: 'white',
+    opacity: 0.9,
+    marginBottom: 16,
+    lineHeight: 22,
   },
   questionText: {
     fontSize: 20,
@@ -410,6 +886,12 @@ const styles = StyleSheet.create({
   },
   answerTextDark: {
     color: '#D1D5DB',
+  },
+  readMoreText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '500',
+    marginTop: 8,
   },
   answerImages: {
     flexDirection: 'row',
@@ -573,5 +1055,40 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '600',
     color: 'white',
+  },
+
+  // Answer Actions (Edit/Delete)
+  answerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: theme.spacing.sm,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  editButton: {
+    backgroundColor: '#EBF5FF',
+  },
+  editButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  deleteButton: {
+    backgroundColor: '#FEF2F2',
+  },
+  deleteButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#EF4444',
   },
 });

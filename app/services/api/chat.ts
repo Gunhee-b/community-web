@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { ChatMessage } from '../../types';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Fetch chat messages for a meeting
@@ -190,19 +191,29 @@ export const fetchReadReceipts = async (chatIds: string[]) => {
  */
 export const uploadChatImage = async (meetingId: string, fileUri: string, fileName: string) => {
   try {
-    // Convert file URI to blob for upload
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    // Read file as base64
+    const base64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: 'base64',
+    });
 
-    const fileExt = fileName.split('.').pop();
+    // Convert base64 to ArrayBuffer
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+
+    const fileExt = fileName.split('.').pop() || 'jpg';
     const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `chat-images/${meetingId}/${uniqueFileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('meeting-images')
-      .upload(filePath, blob, {
+      .upload(filePath, byteArray, {
         cacheControl: '3600',
         upsert: false,
+        contentType: 'image/jpeg',
       });
 
     if (uploadError) throw uploadError;

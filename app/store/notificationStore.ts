@@ -150,7 +150,7 @@ export const useNotificationStore = create<NotificationState>()(
           try {
             await supabase
               .from('notifications')
-              .update({ is_read: true })
+              .update({ read: true })
               .eq('id', notificationId)
               .eq('user_id', userId);
           } catch (error) {
@@ -186,7 +186,7 @@ export const useNotificationStore = create<NotificationState>()(
 
             // 로컬 상태 업데이트
             set((state) => ({
-              dbNotifications: state.dbNotifications.map((n) => ({ ...n, is_read: true })),
+              dbNotifications: state.dbNotifications.map((n) => ({ ...n, read: true })),
               notifications: state.notifications.map((n) => ({ ...n, read: true })),
               unreadCount: 0,
             }));
@@ -285,7 +285,7 @@ export const useNotificationStore = create<NotificationState>()(
 
           if (error) throw error;
 
-          const unreadCount = data?.filter((n) => !n.is_read).length || 0;
+          const unreadCount = data?.filter((n) => !n.read).length || 0;
 
           set({
             dbNotifications: (data || []) as Notification[],
@@ -360,8 +360,8 @@ export const useNotificationStore = create<NotificationState>()(
               // 읽지 않은 알림 수 재계산
               const unreadCount = state.dbNotifications.filter((n) =>
                 n.id === payload.new.id
-                  ? (payload.new as Notification).is_read === false
-                  : n.is_read === false
+                  ? (payload.new as Notification).read === false
+                  : n.read === false
               ).length;
 
               set({ unreadCount });
@@ -383,7 +383,7 @@ export const useNotificationStore = create<NotificationState>()(
               set({
                 dbNotifications: state.dbNotifications.filter((n) => n.id !== payload.old.id),
                 unreadCount:
-                  deletedNotif && !deletedNotif.is_read
+                  deletedNotif && !deletedNotif.read
                     ? Math.max(0, state.unreadCount - 1)
                     : state.unreadCount,
               });

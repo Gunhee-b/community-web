@@ -1,183 +1,282 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { TopNavBar } from '@/components/navigation';
-import { useAppStore } from '@/store';
+import { useAuthStore, useAppStore } from '@/store';
 import { theme } from '@/constants/theme';
+import { supabase } from '@/services/supabase';
+
+/**
+ * Question 타입
+ */
+interface Question {
+  id: string;
+  question_title?: string;
+  question_text: string;
+  scheduled_date: string;
+  is_published: boolean;
+  created_at: string;
+  answer_count?: number;
+}
 
 /**
  * QuestionsScreen
  *
  * 질문 화면
  * - 오늘의 질문 배너
- * - 이전 질문 리스트
+ * - 이전 질문 리스트 (제목 미리보기)
+ * - Supabase 실시간 데이터 연동
  */
 export default function QuestionsScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { theme: appTheme } = useAppStore();
   const isDark = appTheme === 'dark';
 
-  // Mock data - TODO: Replace with API calls
-  const questions = [
-    {
-      id: 1,
-      question: '오늘 가장 기억에 남는 순간은 무엇인가요?',
-      answerCount: 24,
-      date: '11월 8일',
-      isToday: true,
-    },
-    {
-      id: 2,
-      question: '최근에 읽은 책 중 가장 추천하고 싶은 책은?',
-      answerCount: 18,
-      date: '11월 7일',
-      isToday: false,
-    },
-    {
-      id: 3,
-      question: '주말에 가장 하고 싶은 활동은 무엇인가요?',
-      answerCount: 32,
-      date: '11월 6일',
-      isToday: false,
-    },
-    {
-      id: 4,
-      question: '가장 좋아하는 음식과 그 이유는?',
-      answerCount: 27,
-      date: '11월 5일',
-      isToday: false,
-    },
-    {
-      id: 5,
-      question: '만약 시간 여행을 할 수 있다면 언제로 가고 싶나요?',
-      answerCount: 21,
-      date: '11월 4일',
-      isToday: false,
-    },
-    {
-      id: 6,
-      question: '최근에 배운 것 중 가장 유용한 것은?',
-      answerCount: 15,
-      date: '11월 3일',
-      isToday: false,
-    },
-    {
-      id: 7,
-      question: '당신의 버킷리스트 1순위는 무엇인가요?',
-      answerCount: 29,
-      date: '11월 2일',
-      isToday: false,
-    },
-    {
-      id: 8,
-      question: '스트레스를 해소하는 나만의 방법은?',
-      answerCount: 23,
-      date: '11월 1일',
-      isToday: false,
-    },
-  ];
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const todayQuestion = questions.find((q) => q.isToday);
-  const pastQuestions = questions.filter((q) => !q.isToday);
+  // 데이터 불러오기
+  useEffect(() => {
+    fetchQuestions();
+  }, []);
 
-  const handleQuestionDetail = (id: number) => {
+  /**
+   * 질문 목록 가져오기
+   */
+  const fetchQuestions = async () => {
+    try {
+      setLoading(true);
+
+      // 발행된 질문만 가져오기 (오늘 이전 날짜)
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('daily_questions')
+        .select('*')
+        .eq('is_published', true)
+        .lte('scheduled_date', today)
+        .order('scheduled_date', { ascending: false });
+
+      if (error) throw error;
+
+      // 각 질문의 답변 개수 가져오기
+      const questionsWithCount = await Promise.all(
+        (data || []).map(async (question) => {
+          const { count } = await supabase
+            .from('question_answers')
+            .select('*', { count: 'exact', head: true })
+            .eq('question_id', question.id)
+            .eq('is_public', true);
+
+          return {
+            ...question,
+            answer_count: count || 0,
+          };
+        })
+      );
+
+      setQuestions(questionsWithCount);
+    } catch (error) {
+      console.error('Error fetching questions:', error);
+      Alert.alert('오류', '질문 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  /**
+   * 질문 상세로 이동
+   */
+  const handleQuestionDetail = (id: string) => {
     router.push(`/questions/${id}`);
   };
 
-  const renderPastQuestion = ({ item }: any) => (
+  /**
+   * 날짜 포맷
+   */
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}월 ${day}일`;
+  };
+
+  /**
+   * 오늘 질문인지 확인
+   */
+  const isToday = (dateString: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const questionDate = new Date(dateString).toISOString().split('T')[0];
+    return today === questionDate;
+  };
+
+  /**
+   * 질문 제목 생성 (제목이 없으면 내용에서 추출)
+   */
+  const getQuestionTitle = (question: Question) => {
+    // 새로운 필드명 우선
+    if (question.title) {
+      return question.title;
+    }
+    // Legacy 필드명
+    if (question.question_title) {
+      return question.question_title;
+    }
+    // 제목이 없으면 짧은 설명 사용
+    if (question.short_description) {
+      return question.short_description.length > 50
+        ? question.short_description.substring(0, 50) + '...'
+        : question.short_description;
+    }
+    // 그것도 없으면 내용에서 추출
+    const contentText = question.content || question.question_text || '';
+    if (!contentText) {
+      return '질문';
+    }
+    return contentText.length > 50
+      ? contentText.substring(0, 50) + '...'
+      : contentText;
+  };
+
+  /**
+   * 이전 질문 카드 렌더링
+   */
+  const renderPastQuestion = ({ item }: { item: Question }) => (
     <TouchableOpacity
       style={[styles.questionCard, isDark && styles.questionCardDark]}
       onPress={() => handleQuestionDetail(item.id)}
       activeOpacity={0.7}
     >
-      <View style={styles.questionDate}>
-        <Ionicons
-          name="calendar-outline"
-          size={14}
-          color={isDark ? '#8E8E93' : '#6B7280'}
-        />
-        <Text style={[styles.questionDateText, isDark && styles.textSecondaryDark]}>
-          {item.date}
-        </Text>
-      </View>
-      <Text style={[styles.questionText, isDark && styles.textDark]}>
-        {item.question}
-      </Text>
-      <View style={styles.questionFooter}>
-        <View style={styles.answerCount}>
+      <View style={styles.questionHeader}>
+        <View style={styles.questionDate}>
           <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={16}
+            name="calendar-outline"
+            size={14}
             color={isDark ? '#8E8E93' : '#6B7280'}
           />
-          <Text style={[styles.answerCountText, isDark && styles.textSecondaryDark]}>
-            {item.answerCount}개의 답변
+          <Text style={[styles.questionDateText, isDark && styles.textSecondaryDark]}>
+            {formatDate(item.scheduled_date)}
           </Text>
         </View>
-        <Text style={styles.viewLink}>답변 보기</Text>
+        {item.answer_count !== undefined && item.answer_count > 0 && (
+          <View style={styles.answerBadge}>
+            <Ionicons name="chatbubble" size={12} color={theme.colors.primary} />
+            <Text style={styles.answerBadgeText}>{item.answer_count}</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={[styles.questionTitle, isDark && styles.textDark]}>
+        {getQuestionTitle(item)}
+      </Text>
+
+      <View style={styles.questionFooter}>
+        <Text style={styles.viewLink}>자세히 보기 →</Text>
       </View>
     </TouchableOpacity>
   );
 
+  // 오늘의 질문과 이전 질문 분리
+  const todayQuestion = questions.find((q) => isToday(q.scheduled_date));
+  const pastQuestions = questions.filter((q) => !isToday(q.scheduled_date));
+
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <TopNavBar title="질문" />
-      <FlatList
-        data={pastQuestions}
-        renderItem={renderPastQuestion}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          todayQuestion ? (
-            <View style={styles.header}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => handleQuestionDetail(todayQuestion.id)}
-              >
-                <LinearGradient
-                  colors={['#007AFF', '#5856D6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.todayBanner}
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, isDark && styles.textSecondaryDark]}>
+            질문을 불러오는 중...
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={pastQuestions}
+          renderItem={renderPastQuestion}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchQuestions();
+          }}
+          ListHeaderComponent={
+            todayQuestion ? (
+              <View style={styles.header}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => handleQuestionDetail(todayQuestion.id)}
                 >
-                  <View style={styles.todayHeader}>
-                    <View style={styles.todayBadge}>
-                      <Text style={styles.todayBadgeText}>오늘의 질문</Text>
-                    </View>
-                    <Text style={styles.todayDate}>{todayQuestion.date}</Text>
-                  </View>
-                  <Text style={styles.todayQuestion}>{todayQuestion.question}</Text>
-                  <View style={styles.todayFooter}>
-                    <View style={styles.todayAnswerCount}>
-                      <Ionicons name="chatbubble-ellipses" size={18} color="white" />
-                      <Text style={styles.todayAnswerCountText}>
-                        {todayQuestion.answerCount}개의 답변
+                  <LinearGradient
+                    colors={['#007AFF', '#5856D6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.todayBanner}
+                  >
+                    <View style={styles.todayHeader}>
+                      <View style={styles.todayBadge}>
+                        <Text style={styles.todayBadgeText}>오늘의 질문</Text>
+                      </View>
+                      <Text style={styles.todayDate}>
+                        {formatDate(todayQuestion.scheduled_date)}
                       </Text>
                     </View>
-                    <View style={styles.answerButton}>
-                      <Text style={styles.answerButtonText}>답변하기 →</Text>
+                    <Text style={styles.todayQuestionTitle}>
+                      {getQuestionTitle(todayQuestion)}
+                    </Text>
+                    <View style={styles.todayFooter}>
+                      <View style={styles.todayAnswerCount}>
+                        <Ionicons name="chatbubble-ellipses" size={18} color="white" />
+                        <Text style={styles.todayAnswerCountText}>
+                          {todayQuestion.answer_count || 0}개의 답변
+                        </Text>
+                      </View>
+                      <View style={styles.answerButton}>
+                        <Text style={styles.answerButtonText}>자세히 보기 →</Text>
+                      </View>
                     </View>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
+                  </LinearGradient>
+                </TouchableOpacity>
 
-              {/* Past Questions Title */}
-              <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-                이전 질문
-              </Text>
-            </View>
-          ) : null
-        }
-      />
+                {/* Past Questions Title */}
+                <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
+                  이전 질문
+                </Text>
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            !loading && !todayQuestion ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={64}
+                  color={isDark ? '#8E8E93' : '#D1D5DB'}
+                />
+                <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+                  아직 질문이 없습니다
+                </Text>
+              </View>
+            ) : null
+          }
+        />
+      )}
     </View>
   );
 }
@@ -190,6 +289,34 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: '#000000',
   },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+
+  // Empty State
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    paddingTop: 100,
+  },
+  emptyText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+
   content: {
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xxl,
@@ -210,7 +337,7 @@ const styles = StyleSheet.create({
   todayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: theme.spacing.md,
   },
   todayBadge: {
@@ -228,11 +355,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontSize: theme.fontSize.sm,
   },
-  todayQuestion: {
+  todayQuestionTitle: {
     color: 'white',
-    fontSize: theme.fontSize.lg,
+    fontSize: theme.fontSize.xl,
+    fontWeight: '600',
     marginBottom: theme.spacing.md,
-    lineHeight: 24,
+    lineHeight: 28,
   },
   todayFooter: {
     flexDirection: 'row',
@@ -279,36 +407,46 @@ const styles = StyleSheet.create({
   questionCardDark: {
     backgroundColor: '#1C1C1E',
   },
+  questionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
   questionDate: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: theme.spacing.sm,
   },
   questionDateText: {
     fontSize: theme.fontSize.sm,
     color: '#6B7280',
   },
-  questionText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '500',
+  answerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EBF5FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  answerBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  questionTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
     color: theme.colors.text.primary,
     marginBottom: theme.spacing.md,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   questionFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-  },
-  answerCount: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  answerCountText: {
-    fontSize: theme.fontSize.sm,
-    color: '#6B7280',
   },
   viewLink: {
     fontSize: theme.fontSize.sm,

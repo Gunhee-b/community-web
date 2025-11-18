@@ -1,263 +1,452 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Dimensions,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { TopNavBar } from '@/components/navigation';
-import { useAppStore } from '@/store';
+import { useAuthStore, useAppStore } from '@/store';
 import { theme } from '@/constants/theme';
+import { supabase } from '@/services/supabase';
+import { createNotification } from '@/services/notifications';
 
-const { width } = Dimensions.get('window');
+/**
+ * Meeting 타입
+ */
+interface Meeting {
+  id: string;
+  title: string;
+  description: string;
+  meeting_type: 'casual' | 'regular';
+  start_datetime: string;
+  location: string;
+  max_participants: number;
+  status: 'recruiting' | 'confirmed' | 'cancelled' | 'completed';
+  kakao_openchat_url?: string;
+  image_url?: string;
+  host_id: string;
+  host: {
+    username: string;
+  };
+  participants: Array<{ count: number }>;
+  isParticipating?: boolean; // 현재 사용자의 참여 여부
+}
 
 /**
  * MeetingsScreen
  *
- * 모임 화면
- * - 탭: 자율 모임 / 정기 모임
- * - 모임 카드 리스트
- * - FAB (모임 만들기)
+ * 철학챗(모임) 화면
+ * - 탭: 즉흥 모임 / 정기 모임
+ * - Supabase 실시간 데이터 연동
+ * - 모임 참가/나가기 기능
  */
 export default function MeetingsScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { theme: appTheme } = useAppStore();
   const isDark = appTheme === 'dark';
+
   const [activeTab, setActiveTab] = useState<'casual' | 'regular'>('casual');
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Mock data - TODO: Replace with API calls
-  const casualMeetings = [
-    {
-      id: 1,
-      title: '강남 카페 모임',
-      description: '편하게 커피 마시면서 이야기 나눠요',
-      date: '11월 9일',
-      time: '14:00',
-      location: '강남역 스타벅스',
-      host: '김민수',
-      hostIntro: '카페 투어를 좋아하는 김민수입니다',
-      participants: 8,
-      maxParticipants: 12,
-      hasKakaoChat: true,
-      status: 'open',
-    },
-    {
-      id: 2,
-      title: '주말 등산',
-      description: '북한산 백운대 코스로 가볍게 등산해요',
-      date: '11월 10일',
-      time: '09:00',
-      location: '북한산 백운대 입구',
-      host: '박준영',
-      hostIntro: '등산을 즐기는 박준영입니다',
-      participants: 15,
-      maxParticipants: 20,
-      hasKakaoChat: true,
-      status: 'open',
-    },
-    {
-      id: 3,
-      title: '보드게임 카페',
-      description: '신나는 보드게임으로 즐거운 시간 보내요',
-      date: '11월 11일',
-      time: '18:00',
-      location: '홍대 보드게임 카페',
-      host: '이지은',
-      hostIntro: '보드게임 마니아 이지은입니다',
-      participants: 10,
-      maxParticipants: 10,
-      hasKakaoChat: true,
-      status: 'full',
-    },
-  ];
+  // 권한 체크
+  const canCreateMeeting = user?.role === 'admin' || user?.role === 'meeting_host';
 
-  const regularMeetings = [
-    {
-      id: 4,
-      title: '주간 독서 모임',
-      description: '매주 화요일 책을 읽고 토론해요',
-      date: '매주 화요일',
-      time: '19:00',
-      location: '강남 스터디 카페',
-      host: '최수진',
-      hostIntro: '책을 사랑하는 최수진입니다',
-      participants: 8,
-      maxParticipants: 15,
-      hasKakaoChat: true,
-      status: 'open',
-    },
-    {
-      id: 5,
-      title: '월간 영화 감상',
-      description: '한 달에 한 번 영화관에서 영화 관람',
-      date: '매월 첫째 주 토요일',
-      time: '14:00',
-      location: 'CGV 강남',
-      host: '정민호',
-      hostIntro: '영화광 정민호입니다',
-      participants: 12,
-      maxParticipants: 20,
-      hasKakaoChat: true,
-      status: 'open',
-    },
-  ];
+  // 데이터 불러오기
+  useEffect(() => {
+    fetchMeetings();
+  }, [activeTab]);
 
-  const meetings = activeTab === 'casual' ? casualMeetings : regularMeetings;
+  /**
+   * 모임 목록 가져오기
+   */
+  const fetchMeetings = async () => {
+    try {
+      setLoading(true);
 
-  const handleMeetingDetail = (id: number) => {
+      let query = supabase
+        .from('offline_meetings')
+        .select(`
+          *,
+          host:users!host_id(username),
+          participants:meeting_participants(count)
+        `)
+        .eq('is_template', false); // 템플릿 제외
+
+      // 탭별 필터링
+      if (activeTab === 'casual') {
+        query = query
+          .eq('meeting_type', 'casual')
+          .gte('start_datetime', new Date().toISOString())
+          .in('status', ['recruiting', 'confirmed']);
+      } else if (activeTab === 'regular') {
+        query = query
+          .eq('meeting_type', 'regular')
+          .gte('start_datetime', new Date().toISOString())
+          .in('status', ['recruiting', 'confirmed']);
+      }
+
+      const { data, error } = await query.order('start_datetime', { ascending: true });
+
+      if (error) throw error;
+
+      // 각 모임에 대해 현재 사용자의 참여 여부 확인
+      if (user && data) {
+        const meetingsWithParticipation = await Promise.all(
+          data.map(async (meeting) => {
+            const { data: participation } = await supabase
+              .from('meeting_participants')
+              .select('id')
+              .eq('meeting_id', meeting.id)
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+            return {
+              ...meeting,
+              isParticipating: !!participation,
+            };
+          })
+        );
+        setMeetings(meetingsWithParticipation);
+      } else {
+        setMeetings(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      Alert.alert('오류', '모임 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  /**
+   * 모임 상세로 이동
+   */
+  const handleMeetingDetail = (id: string) => {
     router.push(`/meetings/${id}`);
   };
 
+  /**
+   * 모임 만들기
+   */
   const handleCreateMeeting = () => {
-    console.log('Create new meeting');
-    // TODO: Navigate to create meeting screen
+    if (!user) {
+      Alert.alert('로그인 필요', '로그인 후 이용해주세요.');
+      router.push('/login');
+      return;
+    }
+
+    if (!canCreateMeeting) {
+      Alert.alert('권한 없음', '모임 만들기 권한이 없습니다.');
+      return;
+    }
+
+    // TODO: 모임 만들기 화면으로 이동
+    Alert.alert('준비 중', '모임 만들기 기능은 준비 중입니다.');
   };
 
-  const handleJoinMeeting = (id: number) => {
-    console.log('Join meeting:', id);
-    // TODO: Call join meeting API
+  /**
+   * 모임 참가하기
+   */
+  const handleJoinMeeting = async (meetingId: string) => {
+    if (!user) {
+      Alert.alert('로그인 필요', '로그인 후 참여해주세요.');
+      router.push('/login');
+      return;
+    }
+
+    try {
+      // 모임 정보 가져오기 (host_id 확인)
+      const { data: meetingData, error: meetingError } = await supabase
+        .from('meetings')
+        .select('host_id, title')
+        .eq('id', meetingId)
+        .single();
+
+      if (meetingError) throw meetingError;
+
+      // 참여자 추가
+      const { error } = await supabase
+        .from('meeting_participants')
+        .insert([
+          {
+            meeting_id: meetingId,
+            user_id: user.id,
+          },
+        ]);
+
+      if (error) throw error;
+
+      // 모임장에게 알림 전송
+      if (meetingData?.host_id && meetingData.host_id !== user.id) {
+        await createNotification({
+          user_id: meetingData.host_id,
+          title: '새로운 참가자',
+          message: `${user.username}님이 "${meetingData.title}" 모임에 참여했습니다.`,
+          type: 'meeting_join',
+          meeting_id: meetingId,
+          related_id: meetingId,
+        });
+      }
+
+      Alert.alert('성공', '모임에 참여했습니다!');
+      fetchMeetings(); // 목록 새로고침
+    } catch (error: any) {
+      console.error('Error joining meeting:', error);
+      Alert.alert('오류', error.message || '모임 참여에 실패했습니다.');
+    }
   };
 
-  const handleKakaoChat = (id: number) => {
-    console.log('Open Kakao chat:', id);
-    // TODO: Open Kakao chat link
+  /**
+   * 모임 참여 취소
+   */
+  const handleLeaveMeeting = async (meetingId: string) => {
+    if (!user) {
+      return;
+    }
+
+    Alert.alert(
+      '참여 취소',
+      '정말 이 모임 참여를 취소하시겠습니까?',
+      [
+        {
+          text: '아니오',
+          style: 'cancel',
+        },
+        {
+          text: '예',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('meeting_participants')
+                .delete()
+                .eq('meeting_id', meetingId)
+                .eq('user_id', user.id);
+
+              if (error) throw error;
+
+              Alert.alert('완료', '모임 참여가 취소되었습니다.');
+              fetchMeetings(); // 목록 새로고침
+            } catch (error: any) {
+              console.error('Error leaving meeting:', error);
+              Alert.alert('오류', error.message || '참여 취소에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const renderMeetingCard = ({ item }: any) => (
-    <TouchableOpacity
-      style={[styles.card, isDark && styles.cardDark]}
-      onPress={() => handleMeetingDetail(item.id)}
-      activeOpacity={0.7}
-    >
-      {/* Meeting Image */}
-      <LinearGradient
-        colors={['#5AC8FA', '#007AFF', '#5856D6']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.cardImage}
-      />
+  /**
+   * 카카오톡 오픈채팅 열기
+   */
+  const handleKakaoChat = async (url?: string) => {
+    if (!url) {
+      Alert.alert('안내', '카카오톡 오픈채팅 링크가 없습니다.');
+      return;
+    }
 
-      {/* Meeting Details */}
-      <View style={styles.cardContent}>
-        {/* Title and Status */}
-        <View style={styles.cardHeader}>
-          <View style={styles.cardTitleContainer}>
-            <Text style={[styles.cardTitle, isDark && styles.textDark]}>
-              {item.title}
-            </Text>
-            <Text style={[styles.cardDescription, isDark && styles.textSecondaryDark]}>
-              {item.description}
-            </Text>
-          </View>
-          {item.status === 'full' && (
-            <View style={styles.fullBadge}>
-              <Text style={styles.fullBadgeText}>마감</Text>
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('오류', '링크를 열 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('Error opening Kakao chat:', error);
+      Alert.alert('오류', '카카오톡을 열 수 없습니다.');
+    }
+  };
+
+  /**
+   * 날짜 포맷
+   */
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+
+    return {
+      date: `${month}월 ${day}일`,
+      time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+    };
+  };
+
+  /**
+   * 참가자 수 계산
+   */
+  const getParticipantCount = (participants: Array<{ count: number }>) => {
+    if (!participants || participants.length === 0) return 0;
+    return participants[0].count || 0;
+  };
+
+  /**
+   * 모임 카드 렌더링
+   */
+  const renderMeetingCard = ({ item }: { item: Meeting }) => {
+    const { date, time } = formatDate(item.start_datetime);
+    const participantCount = getParticipantCount(item.participants);
+    const isFull = participantCount >= item.max_participants;
+
+    return (
+      <TouchableOpacity
+        style={[styles.card, isDark && styles.cardDark]}
+        onPress={() => handleMeetingDetail(item.id)}
+        activeOpacity={0.7}
+      >
+        {/* Meeting Image */}
+        {item.image_url ? (
+          <Image
+            source={{ uri: item.image_url }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={['#5AC8FA', '#007AFF', '#5856D6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardImage}
+          />
+        )}
+
+        {/* Meeting Details */}
+        <View style={styles.cardContent}>
+          {/* Location & Date (상단, 굵은 글씨) */}
+          <View style={styles.topInfoSection}>
+            <View style={styles.topInfoRow}>
+              <Ionicons
+                name="location"
+                size={18}
+                color={theme.colors.primary}
+              />
+              <Text style={[styles.topInfoText, isDark && styles.textDark]}>
+                {item.location}
+              </Text>
             </View>
-          )}
-        </View>
-
-        {/* Date & Time */}
-        <View style={styles.detailRow}>
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={isDark ? '#8E8E93' : '#6B7280'}
-          />
-          <Text style={[styles.detailText, isDark && styles.textSecondaryDark]}>
-            {item.date} {item.time}
-          </Text>
-        </View>
-
-        {/* Location */}
-        <View style={styles.detailRow}>
-          <Ionicons
-            name="location-outline"
-            size={16}
-            color={isDark ? '#8E8E93' : '#6B7280'}
-          />
-          <Text style={[styles.detailText, isDark && styles.textSecondaryDark]}>
-            {item.location}
-          </Text>
-        </View>
-
-        {/* Participants */}
-        <View style={styles.detailRow}>
-          <Ionicons
-            name="people-outline"
-            size={16}
-            color={isDark ? '#8E8E93' : '#6B7280'}
-          />
-          <Text style={[styles.detailText, isDark && styles.textSecondaryDark]}>
-            {item.participants}/{item.maxParticipants}명 참여
-          </Text>
-        </View>
-
-        {/* Host Info */}
-        <View style={[styles.hostCard, isDark && styles.hostCardDark]}>
-          <View style={styles.hostInfo}>
-            <LinearGradient
-              colors={['#007AFF', '#5856D6']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.hostAvatar}
-            >
-              <Text style={styles.hostAvatarText}>{item.host[0]}</Text>
-            </LinearGradient>
-            <View style={styles.hostDetails}>
-              <View style={styles.hostHeader}>
-                <Text style={[styles.hostName, isDark && styles.textDark]}>
-                  {item.host}
-                </Text>
-                <View style={styles.hostBadge}>
-                  <Text style={styles.hostBadgeText}>호스트</Text>
-                </View>
-              </View>
-              <Text style={[styles.hostIntro, isDark && styles.textSecondaryDark]}>
-                {item.hostIntro}
+            <View style={styles.topInfoRow}>
+              <Ionicons
+                name="calendar"
+                size={18}
+                color={theme.colors.primary}
+              />
+              <Text style={[styles.topInfoText, isDark && styles.textDark]}>
+                {date} {time}
               </Text>
             </View>
           </View>
-        </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actions}>
-          {item.status === 'full' ? (
-            <TouchableOpacity
-              style={[styles.joinButton, styles.joinButtonDisabled]}
-              disabled
-            >
-              <Text style={styles.joinButtonTextDisabled}>마감됨</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.joinButton}
-              onPress={() => handleJoinMeeting(item.id)}
-            >
-              <Text style={styles.joinButtonText}>참여하기</Text>
-            </TouchableOpacity>
-          )}
-          {item.hasKakaoChat && (
-            <TouchableOpacity
-              style={styles.kakaoButton}
-              onPress={() => handleKakaoChat(item.id)}
-            >
-              <Ionicons name="chatbubble" size={18} color="#3C1E1E" />
-              <Text style={styles.kakaoButtonText}>카카오톡</Text>
-            </TouchableOpacity>
-          )}
+          {/* Title and Status */}
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleContainer}>
+              <Text style={[styles.cardTitle, isDark && styles.textDark]}>
+                {item.title}
+              </Text>
+              <Text style={[styles.cardDescription, isDark && styles.textSecondaryDark]}>
+                {item.description}
+              </Text>
+            </View>
+            {isFull && (
+              <View style={styles.fullBadge}>
+                <Text style={styles.fullBadgeText}>마감</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Participants */}
+          <View style={styles.detailRow}>
+            <Ionicons
+              name="people-outline"
+              size={16}
+              color={isDark ? '#8E8E93' : '#6B7280'}
+            />
+            <Text style={[styles.detailText, isDark && styles.textSecondaryDark]}>
+              {participantCount}/{item.max_participants}명 참여
+            </Text>
+          </View>
+
+          {/* Host Info */}
+          <View style={[styles.hostCard, isDark && styles.hostCardDark]}>
+            <View style={styles.hostInfo}>
+              <LinearGradient
+                colors={['#007AFF', '#5856D6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.hostAvatar}
+              >
+                <Text style={styles.hostAvatarText}>{item.host.username[0]}</Text>
+              </LinearGradient>
+              <View style={styles.hostDetails}>
+                <View style={styles.hostHeader}>
+                  <Text style={[styles.hostName, isDark && styles.textDark]}>
+                    {item.host.username}
+                  </Text>
+                  <View style={styles.hostBadge}>
+                    <Text style={styles.hostBadgeText}>호스트</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actions}>
+            {isFull && !item.isParticipating ? (
+              <TouchableOpacity
+                style={[styles.joinButton, styles.joinButtonDisabled]}
+                disabled
+              >
+                <Text style={styles.joinButtonTextDisabled}>마감됨</Text>
+              </TouchableOpacity>
+            ) : item.isParticipating ? (
+              <TouchableOpacity
+                style={styles.leaveButton}
+                onPress={() => handleLeaveMeeting(item.id)}
+              >
+                <Text style={styles.leaveButtonText}>참여 취소</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.joinButton}
+                onPress={() => handleJoinMeeting(item.id)}
+              >
+                <Text style={styles.joinButtonText}>참여하기</Text>
+              </TouchableOpacity>
+            )}
+            {item.kakao_openchat_url && (
+              <TouchableOpacity
+                style={styles.kakaoButton}
+                onPress={() => handleKakaoChat(item.kakao_openchat_url)}
+              >
+                <Ionicons name="chatbubble" size={18} color="#3C1E1E" />
+                <Text style={styles.kakaoButtonText}>카카오톡</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
-      <TopNavBar title="모임" />
+      <TopNavBar title="철학챗" />
 
       {/* Tabs */}
       <View style={[styles.tabs, isDark && styles.tabsDark]}>
@@ -272,7 +461,7 @@ export default function MeetingsScreen() {
               isDark && activeTab !== 'casual' && styles.tabTextDark,
             ]}
           >
-            자율 모임
+            ⚡ 즉흥 모임
           </Text>
           {activeTab === 'casual' && <View style={styles.tabIndicator} />}
         </TouchableOpacity>
@@ -287,29 +476,56 @@ export default function MeetingsScreen() {
               isDark && activeTab !== 'regular' && styles.tabTextDark,
             ]}
           >
-            정기 모임
+            📅 정기 모임
           </Text>
           {activeTab === 'regular' && <View style={styles.tabIndicator} />}
         </TouchableOpacity>
       </View>
 
       {/* Meetings List */}
-      <FlatList
-        data={meetings}
-        renderItem={renderMeetingCard}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, isDark && styles.textSecondaryDark]}>
+            모임을 불러오는 중...
+          </Text>
+        </View>
+      ) : meetings.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="calendar-outline"
+            size={64}
+            color={isDark ? '#8E8E93' : '#D1D5DB'}
+          />
+          <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+            {activeTab === 'casual' ? '즉흥 모임이 없습니다' : '정기 모임이 없습니다'}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={meetings}
+          renderItem={renderMeetingCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchMeetings();
+          }}
+        />
+      )}
 
       {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleCreateMeeting}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="white" />
-      </TouchableOpacity>
+      {canCreateMeeting && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={handleCreateMeeting}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="white" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -360,6 +576,32 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
 
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+
+  // Empty State
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  emptyText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+
   // List
   list: {
     padding: theme.spacing.md,
@@ -383,6 +625,26 @@ const styles = StyleSheet.create({
   cardContent: {
     padding: theme.spacing.md,
   },
+
+  // Top Info Section (Location & Date)
+  topInfoSection: {
+    marginBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  topInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  topInfoText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -477,10 +739,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  hostIntro: {
-    fontSize: theme.fontSize.xs,
-    color: '#6B7280',
-  },
 
   // Actions
   actions: {
@@ -505,6 +763,21 @@ const styles = StyleSheet.create({
   },
   joinButtonTextDisabled: {
     color: '#9CA3AF',
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+  },
+  leaveButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leaveButtonText: {
+    color: '#6B7280',
     fontSize: theme.fontSize.md,
     fontWeight: '600',
   },

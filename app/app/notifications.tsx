@@ -1,148 +1,183 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TopNavBar } from '@/components/navigation';
-import { useNotificationStore, useAppStore } from '@/store';
+import { useAuthStore, useAppStore } from '@/store';
 import { theme } from '@/constants/theme';
-
-type NotificationType = 'meeting' | 'question' | 'vote' | 'chat';
-
-interface Notification {
-  id: number;
-  type: NotificationType;
-  title: string;
-  message: string;
-  time: string;
-  isRead: boolean;
-}
+import {
+  fetchNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+} from '@/services/notifications';
+import type { Notification } from '@/types';
 
 /**
  * NotificationsScreen
  *
  * 알림 화면
- * - 알림 목록
- * - 읽음/읽지 않음 상태
- * - 모두 읽음 처리
+ * - 모임 참여 알림
+ * - 채팅 메시지 알림
+ * - 새로운 질문 알림
+ * - 답변 댓글 알림
  */
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { markAllAsRead } = useNotificationStore();
+  const { user } = useAuthStore();
   const { theme: appTheme } = useAppStore();
   const isDark = appTheme === 'dark';
 
-  // Mock data - TODO: Replace with API calls
-  const notifications: Notification[] = [
-    {
-      id: 1,
-      type: 'meeting',
-      title: '모임 참여 확인',
-      message: '김민수님이 "강남 카페 모임"에 참여했습니다',
-      time: '5분 전',
-      isRead: false,
-    },
-    {
-      id: 2,
-      type: 'question',
-      title: '새로운 질문',
-      message: '오늘의 질문이 업데이트되었습니다',
-      time: '30분 전',
-      isRead: false,
-    },
-    {
-      id: 3,
-      type: 'meeting',
-      title: '모임 시작 알림',
-      message: '"주말 등산" 모임이 1시간 후 시작됩니다',
-      time: '1시간 전',
-      isRead: false,
-    },
-    {
-      id: 4,
-      type: 'vote',
-      title: '투표 시작',
-      message: '11월 베스트 게시물 투표가 시작되었습니다',
-      time: '2시간 전',
-      isRead: true,
-    },
-    {
-      id: 5,
-      type: 'chat',
-      title: '새로운 메시지',
-      message: '이지은님이 채팅방에 메시지를 보냈습니다',
-      time: '3시간 전',
-      isRead: true,
-    },
-    {
-      id: 6,
-      type: 'meeting',
-      title: '모임 취소',
-      message: '"보드게임 카페" 모임이 취소되었습니다',
-      time: '어제',
-      isRead: true,
-    },
-    {
-      id: 7,
-      type: 'question',
-      title: '답변 좋아요',
-      message: '박준영님이 회원님의 답변을 좋아합니다',
-      time: '어제',
-      isRead: true,
-    },
-    {
-      id: 8,
-      type: 'meeting',
-      title: '모임 확정',
-      message: '"강남 카페 모임"이 확정되었습니다',
-      time: '2일 전',
-      isRead: true,
-    },
-  ];
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const getIconName = (type: NotificationType): keyof typeof Ionicons.glyphMap => {
+  useEffect(() => {
+    if (user) {
+      loadNotifications();
+    }
+  }, [user]);
+
+  /**
+   * 알림 목록 불러오기
+   */
+  const loadNotifications = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await fetchNotifications(user.id);
+
+      if (error) throw error;
+      setNotifications(data || []);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      Alert.alert('오류', '알림을 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  /**
+   * 알림 타입별 아이콘
+   */
+  const getIconName = (type: Notification['type']): keyof typeof Ionicons.glyphMap => {
     switch (type) {
-      case 'meeting':
+      case 'meeting_join':
         return 'people';
-      case 'question':
-        return 'chatbubble-ellipses';
-      case 'vote':
-        return 'trending-up';
-      case 'chat':
+      case 'meeting_chat':
         return 'chatbubbles';
+      case 'new_question':
+        return 'help-circle';
+      case 'answer_comment':
+        return 'chatbox';
       default:
         return 'notifications';
     }
   };
 
-  const getIconBgColor = (type: NotificationType): string => {
+  const getIconBgColor = (type: Notification['type']): string => {
     switch (type) {
-      case 'meeting':
+      case 'meeting_join':
+      case 'meeting_chat':
         return theme.colors.primary;
-      case 'question':
+      case 'new_question':
         return theme.colors.secondary;
-      case 'vote':
+      case 'answer_comment':
         return theme.colors.success;
-      case 'chat':
-        return theme.colors.warning;
       default:
         return theme.colors.primary;
     }
   };
 
-  const handleMarkAllAsRead = () => {
-    markAllAsRead();
-    console.log('Mark all notifications as read');
+  /**
+   * 시간 포맷
+   */
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return '방금 전';
+    if (minutes < 60) return `${minutes}분 전`;
+    if (hours < 24) return `${hours}시간 전`;
+    if (days < 7) return `${days}일 전`;
+
+    return date.toLocaleDateString('ko-KR', {
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
-  const handleNotificationPress = (notification: Notification) => {
-    console.log('Notification pressed:', notification.id);
-    // TODO: Navigate to related screen
+  /**
+   * 모두 읽음 처리
+   */
+  const handleMarkAllAsRead = async () => {
+    if (!user) return;
+
+    try {
+      const { error } = await markAllNotificationsAsRead(user.id);
+      if (error) throw error;
+
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      Alert.alert('완료', '모든 알림을 읽음 처리했습니다.');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      Alert.alert('오류', '읽음 처리에 실패했습니다.');
+    }
+  };
+
+  /**
+   * 알림 클릭 처리
+   */
+  const handleNotificationPress = async (notification: Notification) => {
+    // 읽음 처리
+    if (!notification.read) {
+      await markNotificationAsRead(notification.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+      );
+    }
+
+    // 관련 페이지로 이동
+    if (notification.type === 'meeting_join' || notification.type === 'meeting_chat') {
+      if (notification.meeting_id) {
+        router.push(`/meetings/${notification.meeting_id}`);
+      } else if (notification.related_id) {
+        router.push(`/meetings/${notification.related_id}`);
+      }
+    } else if (notification.type === 'new_question' && notification.related_id) {
+      router.push(`/questions/${notification.related_id}`);
+    } else if (notification.type === 'answer_comment' && notification.related_id) {
+      router.push(`/answers/${notification.related_id}`);
+    }
+  };
+
+  /**
+   * 알림 삭제
+   */
+  const handleDeleteNotification = async (notificationId: string) => {
+    try {
+      const { error } = await deleteNotification(notificationId);
+      if (error) throw error;
+
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      Alert.alert('오류', '알림 삭제에 실패했습니다.');
+    }
   };
 
   const renderNotification = ({ item }: { item: Notification }) => (
@@ -150,7 +185,7 @@ export default function NotificationsScreen() {
       style={[
         styles.notificationCard,
         isDark && styles.notificationCardDark,
-        !item.isRead && styles.notificationCardUnread,
+        !item.read && styles.notificationCardUnread,
       ]}
       onPress={() => handleNotificationPress(item)}
       activeOpacity={0.7}
@@ -169,16 +204,25 @@ export default function NotificationsScreen() {
             <Text style={[styles.title, isDark && styles.titleDark]}>
               {item.title}
             </Text>
-            {!item.isRead && <View style={styles.unreadDot} />}
+            {!item.read && <View style={styles.unreadDot} />}
           </View>
           <Text style={[styles.message, isDark && styles.messageDark]}>
             {item.message}
           </Text>
           <Text style={[styles.time, isDark && styles.timeDark]}>
-            {item.time}
+            {formatTime(item.created_at)}
           </Text>
         </View>
       </View>
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={(e) => {
+          e.stopPropagation();
+          handleDeleteNotification(item.id);
+        }}
+      >
+        <Ionicons name="close-circle" size={20} color="#8E8E93" />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 
@@ -194,13 +238,15 @@ export default function NotificationsScreen() {
     </View>
   );
 
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <TopNavBar
         title="알림"
         showBackButton
         rightAction={
-          notifications.length > 0 ? (
+          unreadCount > 0 ? (
             <TouchableOpacity
               onPress={handleMarkAllAsRead}
               style={styles.markAllButton}
@@ -210,17 +256,31 @@ export default function NotificationsScreen() {
           ) : undefined
         }
       />
-      <FlatList
-        data={notifications}
-        renderItem={renderNotification}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={[
-          styles.list,
-          notifications.length === 0 && styles.listEmpty,
-        ]}
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, isDark && styles.textSecondaryDark]}>
+            알림을 불러오는 중...
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          renderItem={renderNotification}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.list,
+            notifications.length === 0 && styles.listEmpty,
+          ]}
+          ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            loadNotifications();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -232,6 +292,22 @@ const styles = StyleSheet.create({
   },
   containerDark: {
     backgroundColor: '#000000',
+  },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+  textSecondaryDark: {
+    color: '#8E8E93',
   },
 
   // Mark All Button
@@ -321,6 +397,10 @@ const styles = StyleSheet.create({
   },
   timeDark: {
     color: '#636366',
+  },
+  deleteButton: {
+    padding: 4,
+    marginLeft: theme.spacing.xs,
   },
 
   // Empty State

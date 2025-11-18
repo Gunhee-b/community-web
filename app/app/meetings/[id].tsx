@@ -8,6 +8,10 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Linking,
+  Alert,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +19,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { TopNavBar } from '@/components/navigation';
 import { useAppStore } from '@/store';
 import { theme } from '@/constants/theme';
+import {
+  fetchMeetingById,
+  joinMeeting as apiJoinMeeting,
+  leaveMeeting as apiLeaveMeeting
+} from '@/services/api/meetings';
+import { AuthService } from '@/services/auth';
+import { supabase } from '@/services/supabase';
+import { createNotification } from '@/services/notifications';
+import type { Meeting } from '@/types';
 
 interface Participant {
   id: number;
@@ -24,12 +37,14 @@ interface Participant {
 }
 
 interface ChatMessage {
-  id: number;
-  user: string;
-  avatar: string;
+  id: string;
+  meeting_id: string;
+  user_id: string;
   message: string;
-  time: string;
-  isOwn: boolean;
+  created_at: string;
+  user?: {
+    username: string;
+  };
 }
 
 /**
@@ -49,72 +64,104 @@ export default function MeetingDetailScreen() {
   const isDark = appTheme === 'dark';
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const [message, setMessage] = useState('');
+  // State management
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [meeting, setMeeting] = useState<any>(null);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isJoined, setIsJoined] = useState(false);
+  const [message, setMessage] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [lastReadAt, setLastReadAt] = useState<string | null>(null);
 
-  // Mock data - TODO: Replace with API call
-  const meeting = {
-    id: Number(id),
-    title: '강남 카페 모임',
-    description: '편하게 커피 마시면서 이야기 나눠요. 새로운 사람들을 만나고 즐거운 시간을 보내실 수 있습니다.',
-    date: '11월 9일',
-    time: '14:00',
-    dayOfWeek: '토요일',
-    location: '강남역 스타벅스 리저브',
-    address: '서울 강남구 테헤란로 152',
-    host: '김민수',
-    hostIntro: '카페 투어를 좋아하는 김민수입니다. 다양한 사람들과 이야기 나누는 것을 좋아합니다!',
-    participants: 8,
-    maxParticipants: 12,
-    hasKakaoChat: true,
+  // Fetch meeting data on mount
+  useEffect(() => {
+    fetchMeetingData();
+    loadCurrentUser();
+    fetchChatMessages();
+  }, [id]);
+
+  // Set up real-time subscription for chat messages
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`meeting-chat-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'meeting_chats',
+          filter: `meeting_id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('New message:', payload);
+          fetchChatMessages(); // Refetch messages when new one arrives
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
+  // Load current user
+  const loadCurrentUser = async () => {
+    try {
+      const user = await AuthService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error loading user:', error);
+    }
   };
 
-  const participants: Participant[] = [
-    { id: 1, name: '김민수', role: 'host', avatar: '김' },
-    { id: 2, name: '이지은', role: 'member', avatar: '이' },
-    { id: 3, name: '박준영', role: 'member', avatar: '박' },
-    { id: 4, name: '최수진', role: 'member', avatar: '최' },
-    { id: 5, name: '정민호', role: 'member', avatar: '정' },
-    { id: 6, name: '강지수', role: 'member', avatar: '강' },
-    { id: 7, name: '윤서연', role: 'member', avatar: '윤' },
-    { id: 8, name: '한동훈', role: 'member', avatar: '한' },
-  ];
+  // Fetch meeting and participants data
+  const fetchMeetingData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 1,
-      user: '김민수',
-      avatar: '김',
-      message: '안녕하세요! 모임에 참여해주셔서 감사합니다.',
-      time: '10:30',
-      isOwn: false,
-    },
-    {
-      id: 2,
-      user: '이지은',
-      avatar: '이',
-      message: '기대됩니다! 어떤 커피를 주문하시나요?',
-      time: '10:35',
-      isOwn: false,
-    },
-    {
-      id: 3,
-      user: '나',
-      avatar: '나',
-      message: '저는 아메리카노 좋아해요',
-      time: '10:40',
-      isOwn: true,
-    },
-    {
-      id: 4,
-      user: '박준영',
-      avatar: '박',
-      message: '날씨가 좋네요. 야외 테라스에서 만날까요?',
-      time: '11:00',
-      isOwn: false,
-    },
-  ]);
+      // Validate ID
+      if (!id || id === 'NaN' || id === 'undefined' || id === 'null') {
+        throw new Error('잘못된 모임 ID입니다');
+      }
+
+      // Fetch meeting details
+      const { data: meetingData, error: meetingError } = await fetchMeetingById(id as string);
+
+      if (meetingError) {
+        throw new Error('모임 정보를 불러올 수 없습니다');
+      }
+
+      if (meetingData) {
+        setMeeting(meetingData);
+
+        // Extract participants from meeting data
+        if (meetingData.participants) {
+          setParticipants(meetingData.participants);
+
+          // Check if current user is a participant
+          const user = await AuthService.getCurrentUser();
+          if (user) {
+            const userParticipant = meetingData.participants.find(
+              (p: any) => p.user_id === user.id
+            );
+            setIsJoined(!!userParticipant);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching meeting:', err);
+      setError(err.message || '모임 정보를 불러오는 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (showChat) {
@@ -122,45 +169,246 @@ export default function MeetingDetailScreen() {
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
+
+      // Mark messages as read when chat is opened
+      setLastReadAt(new Date().toISOString());
     }
   }, [showChat]);
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      const newMessage: ChatMessage = {
-        id: chatMessages.length + 1,
-        user: '나',
-        avatar: '나',
-        message: message.trim(),
-        time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-        isOwn: true,
-      };
-      setChatMessages([...chatMessages, newMessage]);
+  /**
+   * Fetch chat messages from database
+   */
+  const fetchChatMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('meeting_chats')
+        .select(`
+          *,
+          user:users!meeting_chats_user_id_fkey(username)
+        `)
+        .eq('meeting_id', id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      setChatMessages(data || []);
+    } catch (error) {
+      console.error('Error fetching chat messages:', error);
+    }
+  };
+
+  /**
+   * Send message to database
+   */
+  const handleSendMessage = async () => {
+    if (!message.trim() || !currentUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('meeting_chats')
+        .insert([
+          {
+            meeting_id: id as string,
+            user_id: currentUser.id,
+            message: message.trim(),
+            anonymous_name: currentUser.username, // 익명 이름으로 사용자 이름 사용
+          },
+        ]);
+
+      if (error) throw error;
+
+      // 모임 참여자들에게 알림 전송 (본인 제외)
+      const { data: participants } = await supabase
+        .from('meeting_participants')
+        .select('user_id')
+        .eq('meeting_id', id as string)
+        .neq('user_id', currentUser.id);
+
+      if (participants && participants.length > 0 && meeting) {
+        // 각 참여자에게 알림 전송
+        for (const participant of participants) {
+          await createNotification({
+            user_id: participant.user_id,
+            title: meeting.title,
+            message: `${currentUser.username}: ${message.trim().substring(0, 50)}${message.trim().length > 50 ? '...' : ''}`,
+            type: 'meeting_chat',
+            meeting_id: id as string,
+            related_id: id as string,
+          });
+        }
+      }
+
       setMessage('');
 
       // Scroll to bottom after sending message
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      Alert.alert('오류', error.message || '메시지 전송에 실패했습니다.');
     }
   };
 
-  const handleJoinMeeting = () => {
-    setIsJoined(true);
-    console.log('Join meeting:', id);
-    // TODO: Call join meeting API
+  const handleJoinMeeting = async () => {
+    if (!currentUser) {
+      Alert.alert('로그인 필요', '모임에 참여하려면 로그인이 필요합니다.');
+      return;
+    }
+
+    if (actionLoading) return;
+
+    try {
+      setActionLoading(true);
+
+      const { error } = await apiJoinMeeting(id as string, currentUser.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setIsJoined(true);
+      Alert.alert('성공', '모임에 참여했습니다!');
+
+      // Refetch meeting data to update participant list
+      await fetchMeetingData();
+    } catch (err: any) {
+      console.error('Error joining meeting:', err);
+      Alert.alert('오류', err.message || '모임 참여 중 오류가 발생했습니다.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleLeaveMeeting = () => {
-    setIsJoined(false);
-    console.log('Leave meeting:', id);
-    // TODO: Call leave meeting API
+  const handleLeaveMeeting = async () => {
+    if (!currentUser) return;
+    if (actionLoading) return;
+
+    Alert.alert(
+      '모임 나가기',
+      '정말로 모임에서 나가시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+        {
+          text: '나가기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setActionLoading(true);
+
+              const { error } = await apiLeaveMeeting(id as string, currentUser.id);
+
+              if (error) {
+                throw error;
+              }
+
+              setIsJoined(false);
+              Alert.alert('알림', '모임에서 나갔습니다.');
+
+              // Refetch meeting data to update participant list
+              await fetchMeetingData();
+            } catch (err: any) {
+              console.error('Error leaving meeting:', err);
+              Alert.alert('오류', err.message || '모임 나가기 중 오류가 발생했습니다.');
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const handleKakaoChat = () => {
-    console.log('Open Kakao chat');
-    // TODO: Open Kakao chat link
+  const handleKakaoChat = async () => {
+    if (!meeting?.kakao_openchat_link) {
+      Alert.alert('알림', '카카오톡 오픈채팅 링크가 없습니다.');
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(meeting.kakao_openchat_link);
+
+      if (supported) {
+        await Linking.openURL(meeting.kakao_openchat_link);
+      } else {
+        Alert.alert('오류', '카카오톡 링크를 열 수 없습니다.');
+      }
+    } catch (err) {
+      console.error('Error opening Kakao chat:', err);
+      Alert.alert('오류', '카카오톡 오픈채팅을 열 수 없습니다.');
+    }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <TopNavBar title="모임 상세" showBackButton />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, isDark && styles.textDark]}>
+            모임 정보를 불러오는 중...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (error || !meeting) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <TopNavBar title="모임 상세" showBackButton />
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={isDark ? '#8E8E93' : '#6B7280'}
+          />
+          <Text style={[styles.errorText, isDark && styles.textDark]}>
+            {error || '모임 정보를 찾을 수 없습니다'}
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchMeetingData}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.retryButtonText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Calculate unread message count
+  const unreadCount = chatMessages.filter(msg => {
+    // Don't count own messages as unread
+    if (currentUser && msg.user_id === currentUser.id) {
+      return false;
+    }
+    // Count messages created after last read time
+    if (lastReadAt) {
+      return new Date(msg.created_at) > new Date(lastReadAt);
+    }
+    // If never read, count all messages from others
+    return true;
+  }).length;
+
+  // Format meeting date and time
+  const meetingDate = new Date(meeting.start_datetime);
+  const dateStr = meetingDate.toLocaleDateString('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+  });
+  const timeStr = meetingDate.toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const dayOfWeek = meetingDate.toLocaleDateString('ko-KR', { weekday: 'long' });
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -177,23 +425,33 @@ export default function MeetingDetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Meeting Image */}
-          <LinearGradient
-            colors={['#5AC8FA', '#007AFF', '#5856D6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.meetingImage}
-          />
+          {meeting.image_url ? (
+            <Image
+              source={{ uri: meeting.image_url }}
+              style={styles.meetingImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <LinearGradient
+              colors={['#5AC8FA', '#007AFF', '#5856D6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.meetingImage}
+            />
+          )}
 
           {/* Meeting Info */}
           <View style={styles.infoSection}>
             {/* Title & Description */}
             <View style={styles.titleSection}>
               <Text style={[styles.title, isDark && styles.titleDark]}>
-                {meeting.title}
+                {meeting.title || meeting.location || '모임'}
               </Text>
-              <Text style={[styles.description, isDark && styles.descriptionDark]}>
-                {meeting.description}
-              </Text>
+              {meeting.description && (
+                <Text style={[styles.description, isDark && styles.descriptionDark]}>
+                  {meeting.description}
+                </Text>
+              )}
             </View>
 
             {/* Details Card */}
@@ -207,30 +465,34 @@ export default function MeetingDetailScreen() {
                 />
                 <View style={styles.detailContent}>
                   <Text style={[styles.detailText, isDark && styles.detailTextDark]}>
-                    {meeting.date} {meeting.time}
+                    {dateStr} {timeStr}
                   </Text>
                   <Text style={[styles.detailSubtext, isDark && styles.detailSubtextDark]}>
-                    {meeting.dayOfWeek}
+                    {dayOfWeek}
                   </Text>
                 </View>
               </View>
 
               {/* Location */}
-              <View style={styles.detailRow}>
-                <Ionicons
-                  name="location-outline"
-                  size={20}
-                  color={isDark ? '#8E8E93' : '#6B7280'}
-                />
-                <View style={styles.detailContent}>
-                  <Text style={[styles.detailText, isDark && styles.detailTextDark]}>
-                    {meeting.location}
-                  </Text>
-                  <Text style={[styles.detailSubtext, isDark && styles.detailSubtextDark]}>
-                    {meeting.address}
-                  </Text>
+              {meeting.location && (
+                <View style={styles.detailRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={isDark ? '#8E8E93' : '#6B7280'}
+                  />
+                  <View style={styles.detailContent}>
+                    <Text style={[styles.detailText, isDark && styles.detailTextDark]}>
+                      {meeting.location}
+                    </Text>
+                    {meeting.location_detail && (
+                      <Text style={[styles.detailSubtext, isDark && styles.detailSubtextDark]}>
+                        {meeting.location_detail}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-              </View>
+              )}
 
               {/* Participants */}
               <View style={styles.detailRow}>
@@ -241,81 +503,95 @@ export default function MeetingDetailScreen() {
                 />
                 <View style={styles.detailContent}>
                   <Text style={[styles.detailText, isDark && styles.detailTextDark]}>
-                    {meeting.participants}/{meeting.maxParticipants}명 참여
+                    {meeting.current_participants || participants.length}/{meeting.max_participants || '∞'}명 참여
                   </Text>
-                  <Text style={[styles.detailSubtext, isDark && styles.detailSubtextDark]}>
-                    {meeting.maxParticipants - meeting.participants}자리 남음
-                  </Text>
+                  {meeting.max_participants && (
+                    <Text style={[styles.detailSubtext, isDark && styles.detailSubtextDark]}>
+                      {meeting.max_participants - (meeting.current_participants || participants.length)}자리 남음
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>
 
             {/* Host Info */}
-            <View style={[styles.card, isDark && styles.cardDark]}>
-              <Text style={[styles.cardTitle, isDark && styles.cardTitleDark]}>
-                호스트
-              </Text>
-              <View style={styles.hostInfo}>
-                <LinearGradient
-                  colors={['#007AFF', '#5856D6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.hostAvatar}
-                >
-                  <Text style={styles.hostAvatarText}>{meeting.host[0]}</Text>
-                </LinearGradient>
-                <View style={styles.hostDetails}>
-                  <View style={styles.hostHeader}>
-                    <Text style={[styles.hostName, isDark && styles.hostNameDark]}>
-                      {meeting.host}
+            {meeting.host && (
+              <View style={[styles.card, isDark && styles.cardDark]}>
+                <Text style={[styles.cardTitle, isDark && styles.cardTitleDark]}>
+                  호스트
+                </Text>
+                <View style={styles.hostInfo}>
+                  <LinearGradient
+                    colors={['#007AFF', '#5856D6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.hostAvatar}
+                  >
+                    <Text style={styles.hostAvatarText}>
+                      {meeting.host.username?.[0] || meeting.host_name?.[0] || 'H'}
                     </Text>
-                    <View style={styles.hostBadge}>
-                      <Text style={styles.hostBadgeText}>호스트</Text>
+                  </LinearGradient>
+                  <View style={styles.hostDetails}>
+                    <View style={styles.hostHeader}>
+                      <Text style={[styles.hostName, isDark && styles.hostNameDark]}>
+                        {meeting.host.username || meeting.host_name || '호스트'}
+                      </Text>
+                      <View style={styles.hostBadge}>
+                        <Text style={styles.hostBadgeText}>호스트</Text>
+                      </View>
                     </View>
+                    {meeting.host_introduction && (
+                      <Text style={[styles.hostIntro, isDark && styles.hostIntroDark]}>
+                        {meeting.host_introduction}
+                      </Text>
+                    )}
                   </View>
-                  <Text style={[styles.hostIntro, isDark && styles.hostIntroDark]}>
-                    {meeting.hostIntro}
-                  </Text>
                 </View>
               </View>
-            </View>
+            )}
 
             {/* Participants List */}
-            <View style={[styles.card, isDark && styles.cardDark]}>
-              <Text style={[styles.cardTitle, isDark && styles.cardTitleDark]}>
-                참여자 ({participants.length})
-              </Text>
-              <View style={styles.participantsGrid}>
-                {participants.map((participant) => (
-                  <View key={participant.id} style={styles.participantItem}>
-                    <LinearGradient
-                      colors={['#007AFF', '#5856D6']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.participantAvatar}
-                    >
-                      <Text style={styles.participantAvatarText}>
-                        {participant.avatar}
-                      </Text>
-                    </LinearGradient>
-                    <Text
-                      style={[styles.participantName, isDark && styles.participantNameDark]}
-                      numberOfLines={1}
-                    >
-                      {participant.name}
-                    </Text>
-                  </View>
-                ))}
+            {participants.length > 0 && (
+              <View style={[styles.card, isDark && styles.cardDark]}>
+                <Text style={[styles.cardTitle, isDark && styles.cardTitleDark]}>
+                  참여자 ({participants.length})
+                </Text>
+                <View style={styles.participantsGrid}>
+                  {participants.map((participant, index) => {
+                    const username = participant.user?.username || participant.username || '참가자';
+                    return (
+                      <View key={participant.id || index} style={styles.participantItem}>
+                        <LinearGradient
+                          colors={['#007AFF', '#5856D6']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.participantAvatar}
+                        >
+                          <Text style={styles.participantAvatarText}>
+                            {username[0]}
+                          </Text>
+                        </LinearGradient>
+                        <Text
+                          style={[styles.participantName, isDark && styles.participantNameDark]}
+                          numberOfLines={1}
+                        >
+                          {username}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
+            )}
 
-            {/* Chat Section */}
-            <View style={[styles.card, isDark && styles.cardDark, styles.chatCard]}>
-              <TouchableOpacity
-                style={styles.chatHeader}
-                onPress={() => setShowChat(!showChat)}
-                activeOpacity={0.7}
-              >
+            {/* Chat Section - 참여한 사용자만 볼 수 있음 */}
+            {isJoined && (
+              <View style={[styles.card, isDark && styles.cardDark, styles.chatCard]}>
+                <TouchableOpacity
+                  style={styles.chatHeader}
+                  onPress={() => setShowChat(!showChat)}
+                  activeOpacity={0.7}
+                >
                 <View style={styles.chatHeaderLeft}>
                   <Ionicons
                     name="chatbubbles-outline"
@@ -326,9 +602,11 @@ export default function MeetingDetailScreen() {
                     실시간 채팅
                   </Text>
                 </View>
-                <View style={styles.chatBadge}>
-                  <Text style={styles.chatBadgeText}>3</Text>
-                </View>
+                {unreadCount > 0 && (
+                  <View style={styles.chatBadge}>
+                    <Text style={styles.chatBadgeText}>{unreadCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               {showChat && (
@@ -337,59 +615,68 @@ export default function MeetingDetailScreen() {
                     style={styles.chatMessages}
                     showsVerticalScrollIndicator={false}
                   >
-                    {chatMessages.map((msg) => (
-                      <View
-                        key={msg.id}
-                        style={[
-                          styles.messageRow,
-                          msg.isOwn && styles.messageRowOwn,
-                        ]}
-                      >
-                        {!msg.isOwn && (
-                          <LinearGradient
-                            colors={['#007AFF', '#5856D6']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.messageAvatar}
-                          >
-                            <Text style={styles.messageAvatarText}>{msg.avatar}</Text>
-                          </LinearGradient>
-                        )}
-                        <View style={[styles.messageContent, msg.isOwn && styles.messageContentOwn]}>
-                          {!msg.isOwn && (
-                            <Text style={[styles.messageUser, isDark && styles.messageUserDark]}>
-                              {msg.user}
-                            </Text>
+                    {chatMessages.map((msg) => {
+                      const isOwn = currentUser && msg.user_id === currentUser.id;
+                      const username = msg.user?.username || '알 수 없음';
+                      const messageTime = new Date(msg.created_at).toLocaleTimeString('ko-KR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+
+                      return (
+                        <View
+                          key={msg.id}
+                          style={[
+                            styles.messageRow,
+                            isOwn && styles.messageRowOwn,
+                          ]}
+                        >
+                          {!isOwn && (
+                            <LinearGradient
+                              colors={['#007AFF', '#5856D6']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.messageAvatar}
+                            >
+                              <Text style={styles.messageAvatarText}>{username[0]}</Text>
+                            </LinearGradient>
                           )}
-                          <View
-                            style={[
-                              styles.messageBubble,
-                              msg.isOwn
-                                ? styles.messageBubbleOwn
-                                : isDark
-                                ? styles.messageBubbleDark
-                                : styles.messageBubbleOther,
-                            ]}
-                          >
-                            <Text
+                          <View style={[styles.messageContent, isOwn && styles.messageContentOwn]}>
+                            {!isOwn && (
+                              <Text style={[styles.messageUser, isDark && styles.messageUserDark]}>
+                                {username}
+                              </Text>
+                            )}
+                            <View
                               style={[
-                                styles.messageText,
-                                msg.isOwn
-                                  ? styles.messageTextOwn
+                                styles.messageBubble,
+                                isOwn
+                                  ? styles.messageBubbleOwn
                                   : isDark
-                                  ? styles.messageTextDark
-                                  : styles.messageTextOther,
+                                  ? styles.messageBubbleDark
+                                  : styles.messageBubbleOther,
                               ]}
                             >
-                              {msg.message}
+                              <Text
+                                style={[
+                                  styles.messageText,
+                                  isOwn
+                                    ? styles.messageTextOwn
+                                    : isDark
+                                    ? styles.messageTextDark
+                                    : styles.messageTextOther,
+                                ]}
+                              >
+                                {msg.message}
+                              </Text>
+                            </View>
+                            <Text style={[styles.messageTime, isDark && styles.messageTimeDark]}>
+                              {messageTime}
                             </Text>
                           </View>
-                          <Text style={[styles.messageTime, isDark && styles.messageTimeDark]}>
-                            {msg.time}
-                          </Text>
                         </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </ScrollView>
 
                   {/* Message Input */}
@@ -419,7 +706,8 @@ export default function MeetingDetailScreen() {
                   </View>
                 </View>
               )}
-            </View>
+              </View>
+            )}
 
             {/* Bottom spacing for fixed action bar */}
             <View style={styles.bottomSpacing} />
@@ -431,28 +719,41 @@ export default function MeetingDetailScreen() {
           {isJoined ? (
             <View style={styles.actionButtons}>
               <TouchableOpacity
-                style={styles.leaveButton}
+                style={[styles.leaveButton, actionLoading && styles.buttonDisabled]}
                 onPress={handleLeaveMeeting}
                 activeOpacity={0.7}
+                disabled={actionLoading}
               >
-                <Text style={styles.leaveButtonText}>참여 취소</Text>
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={theme.colors.error} />
+                ) : (
+                  <Text style={styles.leaveButtonText}>참여 취소</Text>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.kakaoButton}
-                onPress={handleKakaoChat}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="chatbubbles" size={18} color="#3C1E1E" />
-                <Text style={styles.kakaoButtonText}>카카오톡 오픈채팅</Text>
-              </TouchableOpacity>
+              {meeting.kakao_openchat_link && (
+                <TouchableOpacity
+                  style={[styles.kakaoButton, actionLoading && styles.buttonDisabled]}
+                  onPress={handleKakaoChat}
+                  activeOpacity={0.7}
+                  disabled={actionLoading}
+                >
+                  <Ionicons name="chatbubbles" size={18} color="#3C1E1E" />
+                  <Text style={styles.kakaoButtonText}>카카오톡 오픈채팅</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <TouchableOpacity
-              style={styles.joinButton}
+              style={[styles.joinButton, actionLoading && styles.buttonDisabled]}
               onPress={handleJoinMeeting}
               activeOpacity={0.8}
+              disabled={actionLoading}
             >
-              <Text style={styles.joinButtonText}>모임 참여하기</Text>
+              {actionLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.joinButtonText}>모임 참여하기</Text>
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -474,6 +775,52 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 100, // Space for action bar
+  },
+
+  // Loading State
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+  },
+
+  // Error State
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  errorText: {
+    fontSize: theme.fontSize.md,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    marginTop: theme.spacing.md,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+  },
+  textDark: {
+    color: 'white',
+  },
+
+  // Button Disabled State
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   // Meeting Image

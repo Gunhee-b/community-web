@@ -34,21 +34,40 @@ export interface Meeting {
 
 export interface Question {
   id: string;
-  question_text: string;
-  date: string;
-  is_active: boolean;
+  title?: string;          // 질문 제목
+  short_description?: string; // 짧은 설명
+  content?: string;        // 상세 내용
+  scheduled_date: string;
+  is_published: boolean;
   created_at: string;
+  image_url?: string;      // 질문 이미지
+  external_link?: string;  // 외부 링크
+  external_link_text?: string; // 외부 링크 텍스트
+  reference_links?: string; // 참고 문헌 (JSON)
+  // Legacy fields for backward compatibility
+  question_title?: string;
+  question_text?: string;
+  date?: string;
+  is_active?: boolean;
 }
 
 export interface Answer {
   id: string;
   question_id: string;
   user_id: string;
-  answer_text: string;
+  content: string;         // 답변 내용 (웹 DB 필드명)
+  answer_text?: string;    // Legacy field
   image_url?: string;
   image_url_2?: string;
   is_public: boolean;
   created_at: string;
+  updated_at?: string;
+  user?: {
+    username: string;
+  };
+  users?: {              // Supabase join 결과
+    username: string;
+  };
 }
 
 export interface ChatMessage {
@@ -62,14 +81,27 @@ export interface ChatMessage {
   };
 }
 
+export interface AnswerComment {
+  id: string;
+  answer_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at?: string;
+  user?: {
+    username: string;
+  };
+}
+
 export interface Notification {
   id: string;
   user_id: string;
   title: string;
   message: string;
-  type: 'meeting' | 'chat' | 'question' | 'vote' | 'system';
+  type: 'meeting_join' | 'meeting_chat' | 'new_question' | 'answer_comment' | 'vote' | 'system';
+  meeting_id?: string;
   related_id?: string;
-  is_read: boolean;
+  read: boolean;
   created_at: string;
 }
 

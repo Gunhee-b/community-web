@@ -49,3 +49,6 @@ build/
 credentials.json
 secrets.json
 config.local.*
+
+# Setup guides with sensitive information
+SOCIAL_LOGIN_SETUP.md

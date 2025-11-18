@@ -133,40 +133,15 @@ serve(async (req) => {
       throw new Error(userData?.error || 'Failed to create user');
     }
 
-    // 4. Create a Supabase session for the user
-    // Generate a JWT token for the user
-    const { data: sessionData, error: sessionError } = await supabase.auth.admin.createUser({
-      email: email || `kakao_${providerId}@rezom.app`,
-      email_confirm: true,
-      user_metadata: {
-        provider: 'kakao',
-        provider_id: providerId,
-        username: username,
-        avatar_url: avatarUrl,
-      },
-    });
-
-    if (sessionError) {
-      console.error('Session creation error:', sessionError);
-      // If user already exists, sign them in instead
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email || `kakao_${providerId}@rezom.app`,
-        password: providerId, // Use provider ID as password for social logins
-      });
-
-      if (signInError) {
-        throw new Error('Failed to create session');
-      }
-    }
-
-    // Return success response
+    // 4. Return success response with user data
+    // The mobile app will generate its own JWT token using the user data
     return new Response(
       JSON.stringify({
         success: true,
         data: {
           user: userData.user,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
+          access_token: `kakao_${tokenData.access_token}`,
+          refresh_token: tokenData.refresh_token || null,
         },
       }),
       {

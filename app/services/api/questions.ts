@@ -9,10 +9,10 @@ export const fetchQuestions = async (activeOnly: boolean = false) => {
     let query = supabase
       .from('daily_questions')
       .select('*')
-      .order('date', { ascending: false });
+      .order('scheduled_date', { ascending: false });
 
     if (activeOnly) {
-      query = query.eq('is_active', true);
+      query = query.eq('is_published', true);
     }
 
     const { data, error } = await query;
@@ -30,10 +30,19 @@ export const fetchQuestions = async (activeOnly: boolean = false) => {
  */
 export const fetchTodayQuestion = async () => {
   try {
-    const { data, error } = await supabase.rpc('get_today_question');
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('daily_questions')
+      .select('*')
+      .eq('is_published', true)
+      .eq('scheduled_date', today)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) throw error;
-    return { data: data as Question, error: null };
+    return { data: data as Question | null, error: null };
   } catch (error) {
     console.error('Error fetching today question:', error);
     return { data: null, error };
@@ -65,10 +74,10 @@ export const fetchQuestionById = async (questionId: string) => {
 export const fetchAnswersByQuestion = async (questionId: string, publicOnly: boolean = true) => {
   try {
     let query = supabase
-      .from('daily_answers')
+      .from('question_answers')
       .select(`
         *,
-        user:users(username)
+        user:users!question_answers_user_id_fkey(username)
       `)
       .eq('question_id', questionId)
       .order('created_at', { ascending: false });
@@ -93,7 +102,7 @@ export const fetchAnswersByQuestion = async (questionId: string, publicOnly: boo
 export const fetchUserAnswer = async (questionId: string, userId: string) => {
   try {
     const { data, error } = await supabase
-      .from('daily_answers')
+      .from('question_answers')
       .select('*')
       .eq('question_id', questionId)
       .eq('user_id', userId)
@@ -113,14 +122,14 @@ export const fetchUserAnswer = async (questionId: string, userId: string) => {
 export const submitAnswer = async (answerData: {
   question_id: string;
   user_id: string;
-  answer_text: string;
+  content: string;       // Use 'content' field (web DB field name)
   is_public: boolean;
   image_url?: string;
   image_url_2?: string;
 }) => {
   try {
     const { data, error } = await supabase
-      .from('daily_answers')
+      .from('question_answers')
       .insert([answerData])
       .select()
       .single();
@@ -139,7 +148,7 @@ export const submitAnswer = async (answerData: {
 export const updateAnswer = async (
   answerId: string,
   updates: {
-    answer_text?: string;
+    content?: string;      // Use 'content' field (web DB field name)
     is_public?: boolean;
     image_url?: string;
     image_url_2?: string;
@@ -147,7 +156,7 @@ export const updateAnswer = async (
 ) => {
   try {
     const { data, error } = await supabase
-      .from('daily_answers')
+      .from('question_answers')
       .update(updates)
       .eq('id', answerId)
       .select()
@@ -166,7 +175,7 @@ export const updateAnswer = async (
  */
 export const deleteAnswer = async (answerId: string) => {
   try {
-    const { error } = await supabase.from('daily_answers').delete().eq('id', answerId);
+    const { error } = await supabase.from('question_answers').delete().eq('id', answerId);
 
     if (error) throw error;
     return { error: null };

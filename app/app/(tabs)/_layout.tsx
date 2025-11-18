@@ -7,7 +7,7 @@ import { useAppStore } from '@/store';
  *
  * 메인 화면의 하단 탭 네비게이션
  * - Home (홈)
- * - Meetings (모임)
+ * - Meetings (철학챗)
  * - Questions (질문)
  * - Profile (프로필)
  */
@@ -47,9 +47,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="meetings"
         options={{
-          title: '모임',
+          title: '철학챗',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="chatbubbles-outline" size={size} color={color} />
           ),
         }}
       />
@@ -69,6 +69,18 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null, // 탭에서 숨김
+        }}
+      />
+      <Tabs.Screen
+        name="two"
+        options={{
+          href: null, // 탭에서 숨김
         }}
       />
     </Tabs>

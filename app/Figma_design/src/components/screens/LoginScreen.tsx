@@ -25,9 +25,9 @@ export default function LoginScreen({ onLogin, onSignup, onResetPassword, theme 
         {/* Logo and Title */}
         <div className="text-center mb-10">
           <div className="w-20 h-20 bg-gradient-to-br from-[#007AFF] to-[#5856D6] rounded-3xl mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white text-3xl">I</span>
+            <span className="text-white text-3xl">R</span>
           </div>
-          <h1 className={`text-2xl mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>INGK Community</h1>
+          <h1 className={`text-2xl mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Rezom Community</h1>
           <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>한국 커뮤니티에 오신 것을 환영합니다</p>
         </div>
 

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  ViewStyle,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,15 +34,15 @@ export default function LoginScreen() {
   // 🔧 개발 모드: Mock 로그인 (서버 연결 없이 테스트)
   const handleDevLogin = () => {
     const mockUser = {
-      id: 1,
+      id: '00000000-0000-0000-0000-000000000001', // UUID 형식으로 변경
       username: '테스트유저',
       email: 'test@example.com',
-      role: 'member',
+      role: 'user' as const,
       created_at: new Date().toISOString(),
     };
     const mockToken = 'mock-jwt-token-for-testing';
 
-    login(mockUser, mockToken, 'google'); // 소셜 로그인으로 변경
+    login(mockUser, mockToken, 'social');
     console.log('✅ Dev Mode: Mock login successful');
   };
 
@@ -49,7 +50,7 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      let result;
+      let result: any;
       switch (provider) {
         case 'google':
           result = await AuthService.signInWithGoogle();
@@ -62,8 +63,8 @@ export default function LoginScreen() {
           break;
       }
 
-      if (result?.success && result.data) {
-        login(result.data.user, result.data.access_token, provider);
+      if (result?.success && result?.data) {
+        login(result.data.user, result.data.access_token, 'social');
         console.log(`✅ ${provider} login successful`);
       } else {
         Alert.alert('로그인 실패', result?.error || '소셜 로그인에 실패했습니다.');
@@ -97,10 +98,10 @@ export default function LoginScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.logo}
           >
-            <Text style={styles.logoText}>I</Text>
+            <Text style={styles.logoText}>R</Text>
           </LinearGradient>
           <Text style={[styles.title, isDark && styles.titleDark]}>
-            INGK Community
+            Rezom Community
           </Text>
           <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
             한국 커뮤니티에 오신 것을 환영합니다
@@ -131,16 +132,6 @@ export default function LoginScreen() {
               Kakao로 계속하기
             </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.socialButton, isDark && styles.socialButtonDark]}
-            onPress={() => handleSocialLogin('naver')}
-          >
-            <View style={[styles.socialIcon, { backgroundColor: '#03C75A' }]} />
-            <Text style={[styles.socialButtonText, isDark && styles.socialButtonTextDark]}>
-              Naver로 계속하기
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* 🔧 개발 모드: Mock 로그인 버튼 */}
@@ -160,26 +151,26 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
+  } as ViewStyle,
   scroll: {
     flex: 1,
     backgroundColor: '#F2F2F7',
-  },
+  } as ViewStyle,
   scrollDark: {
     backgroundColor: '#000000',
-  },
+  } as ViewStyle,
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.xl,
-  },
+  } as ViewStyle,
 
   // Header
   header: {
     alignItems: 'center',
     marginBottom: theme.spacing.xxl,
-  },
+  } as ViewStyle,
   logo: {
     width: 80,
     height: 80,
@@ -187,7 +178,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: theme.spacing.md,
-  },
+  } as ViewStyle,
   logoText: {
     fontSize: 48,
     fontWeight: 'bold',

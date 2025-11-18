@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "INGK Community",
-    "slug": "ingk-community",
+    "name": "Rezom Community",
+    "slug": "rezom-community",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ingkcommunity",
+    "scheme": "rezom",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,15 +14,58 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.rezom.community",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "kakaokompassauth",
+          "kakaolink",
+          "naversearchapp",
+          "naversearchthirdlogin"
+        ],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["kakao57450a0289e45de479273c9fc168f4fb"]
+          },
+          {
+            "CFBundleURLSchemes": ["rezom"]
+          }
+        ],
+        "NSPhotoLibraryUsageDescription": "프로필 사진 및 게시물 이미지를 업로드하기 위해 사진 라이브러리에 접근합니다.",
+        "NSCameraUsageDescription": "프로필 사진을 촬영하기 위해 카메라에 접근합니다.",
+        "NSPhotoLibraryAddUsageDescription": "촬영한 사진을 저장하기 위해 사진 라이브러리에 접근합니다."
+      }
     },
     "android": {
+      "package": "com.rezom.community",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "rezom"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "kakao57450a0289e45de479273c9fc168f4fb",
+              "host": "oauth"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -30,7 +73,8 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

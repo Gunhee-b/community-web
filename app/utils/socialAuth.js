@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core'
 const getRedirectUrl = () => {
   if (Capacitor.isNativePlatform()) {
     // For mobile apps, use custom scheme
-    return 'ingk://auth/callback'
+    return 'rezom://auth/callback'
   }
   // For web, use current origin
   return `${window.location.origin}/auth/callback`

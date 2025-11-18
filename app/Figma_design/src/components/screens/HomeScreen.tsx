@@ -81,7 +81,7 @@ export default function HomeScreen({
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-gray-50'} pb-20`}>
       <TopNavBar
-        title="INGK Community"
+        title="Rezom Community"
         onNotifications={onNotifications}
         notificationCount={notificationCount}
         theme={theme}

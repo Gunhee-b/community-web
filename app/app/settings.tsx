@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TopNavBar } from '@/components/navigation';
-import { useAppStore } from '@/store';
+import { useAppStore, useAuthStore } from '@/store';
 import { theme } from '@/constants/theme';
 
 /**
@@ -25,6 +25,7 @@ import { theme } from '@/constants/theme';
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme: appTheme, setTheme } = useAppStore();
+  const { logout } = useAuthStore();
   const isDark = appTheme === 'dark';
 
   // Notification Settings
@@ -49,7 +50,28 @@ export default function SettingsScreen() {
   };
 
   const handleVersionPress = () => {
-    Alert.alert('버전 정보', 'INGK Community v1.0.0');
+    Alert.alert('버전 정보', 'Rezom Community v1.0.0');
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      '로그아웃',
+      '정말 로그아웃 하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+        {
+          text: '로그아웃',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            // _layout.tsx가 자동으로 로그인 화면으로 이동시킴
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -293,6 +315,27 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Logout Section */}
+        <View style={styles.section}>
+          <View style={[styles.card, isDark && styles.cardDark]}>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={handleLogout}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons
+                  name="log-out-outline"
+                  size={20}
+                  color={theme.colors.error}
+                />
+                <Text style={[styles.settingLabel, styles.logoutText]}>
+                  로그아웃
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -421,5 +464,10 @@ const styles = StyleSheet.create({
   },
   themeButtonTextActive: {
     color: theme.colors.primary,
+  },
+
+  // Logout
+  logoutText: {
+    color: theme.colors.error,
   },
 });
