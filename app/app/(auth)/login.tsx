@@ -46,7 +46,7 @@ export default function LoginScreen() {
     console.log('✅ Dev Mode: Mock login successful');
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'kakao' | 'naver') => {
+  const handleSocialLogin = async (provider: 'google' | 'kakao' | 'naver' | 'apple') => {
     setIsLoading(true);
 
     try {
@@ -60,6 +60,9 @@ export default function LoginScreen() {
           break;
         case 'naver':
           result = await AuthService.signInWithNaver();
+          break;
+        case 'apple':
+          result = await AuthService.signInWithApple();
           break;
       }
 
@@ -113,6 +116,16 @@ export default function LoginScreen() {
 
         {/* Social Login Buttons */}
         <View style={styles.socialButtons}>
+          <TouchableOpacity
+            style={[styles.socialButton, styles.appleButton, isDark && styles.socialButtonDark]}
+            onPress={() => handleSocialLogin('apple')}
+          >
+            <View style={[styles.socialIcon, { backgroundColor: '#000000' }]} />
+            <Text style={[styles.socialButtonText, styles.appleButtonText, isDark && styles.socialButtonTextDark]}>
+              Apple로 계속하기
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.socialButton, isDark && styles.socialButtonDark]}
             onPress={() => handleSocialLogin('google')}
@@ -232,6 +245,12 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
   socialButtonTextDark: {
+    color: 'white',
+  },
+  appleButton: {
+    backgroundColor: '#000000',
+  },
+  appleButtonText: {
     color: 'white',
   },
 

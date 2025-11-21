@@ -4,6 +4,8 @@ import { User } from '../types';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from './supabase';
 import Constants from 'expo-constants';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { Platform } from 'react-native';
 
 /**
  * 저장소 키 상수
@@ -908,6 +910,117 @@ export class AuthService {
       return {
         success: false,
         error: error.message || 'Naver 로그인 중 오류가 발생했습니다',
+      };
+    }
+  }
+
+  /**
+   * Apple 소셜 로그인
+   *
+   * Apple Sign In을 사용한 로그인
+   * - iOS 전용 기능
+   * - 이메일 비공개 옵션 지원
+   *
+   * @returns 인증 응답 또는 에러
+   *
+   * @example
+   * ```typescript
+   * const result = await AuthService.signInWithApple();
+   * if (result.success && result.data) {
+   *   console.log('Apple login successful:', result.data.user);
+   * }
+   * ```
+   */
+  static async signInWithApple() {
+    try {
+      // iOS만 지원
+      if (Platform.OS !== 'ios') {
+        return {
+          success: false,
+          error: 'Apple 로그인은 iOS에서만 지원됩니다',
+        };
+      }
+
+      console.log('Starting Apple sign-in...');
+
+      // 1. Apple 인증 요청
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      console.log('Apple credential received:', {
+        user: credential.user,
+        email: credential.email,
+        fullName: credential.fullName,
+      });
+
+      // 2. Identity Token 검증 및 사용자 정보 동기화
+      const identityToken = credential.identityToken;
+      const authorizationCode = credential.authorizationCode;
+
+      if (!identityToken) {
+        throw new Error('Apple Identity Token을 받지 못했습니다');
+      }
+
+      // 3. Supabase를 통한 사용자 동기화
+      const providerId = credential.user;
+      const email = credential.email || `${providerId}@privaterelay.appleid.com`;
+      const fullName = credential.fullName;
+      const username = fullName?.givenName
+        ? `${fullName.givenName}${fullName.familyName || ''}`.trim()
+        : email.split('@')[0];
+
+      // find_or_create_social_user RPC 호출
+      const { data: syncData, error: syncError } = await supabase.rpc('find_or_create_social_user', {
+        p_provider: 'apple',
+        p_provider_user_id: providerId,
+        p_email: email,
+        p_username: username,
+        p_avatar_url: null, // Apple은 아바타 제공 안함
+        p_display_name: username,
+      });
+
+      if (syncError) {
+        console.error('User sync error:', syncError);
+        throw syncError;
+      }
+
+      if (!syncData.success) {
+        throw new Error(syncData.error || '사용자 정보 동기화에 실패했습니다');
+      }
+
+      // 4. 인증 데이터 저장
+      const authResponse: AuthResponse = {
+        user: syncData.user,
+        access_token: `apple_${identityToken}`,
+        refresh_token: authorizationCode || undefined,
+      };
+
+      await this.saveAuthData(authResponse, 'social');
+
+      console.log('✅ Apple login successful:', syncData.user.username);
+
+      return {
+        success: true,
+        data: authResponse,
+      };
+    } catch (error: any) {
+      console.error('Apple login error:', error);
+
+      // 사용자가 취소한 경우
+      if (error.code === 'ERR_CANCELED') {
+        return {
+          success: false,
+          error: '로그인이 취소되었습니다',
+        };
+      }
+
+      return {
+        success: false,
+        error: error.message || 'Apple 로그인 중 오류가 발생했습니다',
       };
     }
   }

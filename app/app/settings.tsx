@@ -7,12 +7,16 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  TextInput,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TopNavBar } from '@/components/navigation';
 import { useAppStore, useAuthStore } from '@/store';
 import { theme } from '@/constants/theme';
+import { supabase } from '@/services/supabase';
 
 /**
  * SettingsScreen
@@ -25,7 +29,7 @@ import { theme } from '@/constants/theme';
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme: appTheme, setTheme } = useAppStore();
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const isDark = appTheme === 'dark';
 
   // Notification Settings
@@ -34,6 +38,11 @@ export default function SettingsScreen() {
   const [questionNotifications, setQuestionNotifications] = useState(true);
   const [chatNotifications, setChatNotifications] = useState(true);
   const [notificationSound, setNotificationSound] = useState(true);
+
+  // Account Deletion States
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleThemeChange = (selectedTheme: 'light' | 'dark') => {
     setTheme(selectedTheme);
@@ -72,6 +81,49 @@ export default function SettingsScreen() {
         },
       ]
     );
+  };
+
+  const handleDeleteAccountPress = () => {
+    setDeleteConfirmation('');
+    setDeleteModalVisible(true);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== '계정삭제') {
+      Alert.alert('오류', "'계정삭제'를 정확히 입력해주세요.");
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      // Supabase RPC로 계정 삭제 (모든 관련 데이터 삭제)
+      const { data, error } = await supabase.rpc('delete_user_account', {
+        p_user_id: user?.id,
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || '계정 삭제 중 오류가 발생했습니다');
+      }
+
+      // 로그아웃 및 로컬 데이터 삭제
+      await logout();
+
+      Alert.alert(
+        '계정 삭제 완료',
+        '계정이 성공적으로 삭제되었습니다. 그동안 이용해주셔서 감사합니다.',
+        [{ text: '확인' }]
+      );
+
+      setDeleteModalVisible(false);
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      Alert.alert('오류', error.message || '계정 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -316,6 +368,30 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Account Management Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+            계정 관리
+          </Text>
+          <View style={[styles.card, isDark && styles.cardDark]}>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={handleDeleteAccountPress}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons
+                  name="trash-outline"
+                  size={20}
+                  color={theme.colors.error}
+                />
+                <Text style={[styles.settingLabel, styles.deleteText]}>
+                  계정 삭제
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Logout Section */}
         <View style={styles.section}>
           <View style={[styles.card, isDark && styles.cardDark]}>
@@ -337,6 +413,79 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Delete Account Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modal, isDark && styles.modalDark]}>
+            <Ionicons
+              name="warning"
+              size={48}
+              color={theme.colors.error}
+              style={styles.modalIcon}
+            />
+            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+              계정을 삭제하시겠습니까?
+            </Text>
+            <Text style={[styles.modalDescription, isDark && styles.modalDescriptionDark]}>
+              계정을 삭제하면 다음 데이터가 영구적으로 삭제됩니다:
+            </Text>
+            <View style={styles.warningList}>
+              <Text style={styles.warningItem}>• 모든 개인정보</Text>
+              <Text style={styles.warningItem}>• 작성한 답변 및 글</Text>
+              <Text style={styles.warningItem}>• 90-Day Challenge 기록</Text>
+              <Text style={styles.warningItem}>• 모임 참여 기록</Text>
+            </View>
+            <Text style={[styles.modalWarning, isDark && styles.modalWarningDark]}>
+              ⚠️ 이 작업은 되돌릴 수 없습니다
+            </Text>
+            <Text style={[styles.modalInstruction, isDark && styles.modalInstructionDark]}>
+              계속하려면 아래에 '<Text style={styles.boldText}>계정삭제</Text>'를 입력하세요:
+            </Text>
+            <TextInput
+              style={[
+                styles.confirmInput,
+                isDark && styles.confirmInputDark,
+              ]}
+              placeholder="계정삭제"
+              placeholderTextColor={isDark ? '#8E8E93' : '#9CA3AF'}
+              value={deleteConfirmation}
+              onChangeText={setDeleteConfirmation}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setDeleteModalVisible(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.cancelButtonText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.deleteButton,
+                  (isDeleting || deleteConfirmation !== '계정삭제') && styles.deleteButtonDisabled,
+                ]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting || deleteConfirmation !== '계정삭제'}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.deleteButtonText}>삭제</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -466,8 +615,133 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
   },
 
-  // Logout
+  // Logout & Delete
   logoutText: {
     color: theme.colors.error,
+  },
+  deleteText: {
+    color: theme.colors.error,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  modal: {
+    backgroundColor: 'white',
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalDark: {
+    backgroundColor: '#1C1C1E',
+  },
+  modalIcon: {
+    alignSelf: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  modalTitleDark: {
+    color: 'white',
+  },
+  modalDescription: {
+    fontSize: theme.fontSize.sm,
+    color: '#6B7280',
+    marginBottom: theme.spacing.sm,
+  },
+  modalDescriptionDark: {
+    color: '#8E8E93',
+  },
+  warningList: {
+    marginBottom: theme.spacing.md,
+    paddingLeft: theme.spacing.sm,
+  },
+  warningItem: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.error,
+    marginVertical: 2,
+  },
+  modalWarning: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.error,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  modalWarningDark: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  modalInstruction: {
+    fontSize: theme.fontSize.sm,
+    color: '#6B7280',
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  modalInstructionDark: {
+    color: '#8E8E93',
+  },
+  boldText: {
+    fontWeight: '600',
+    color: theme.colors.error,
+  },
+  confirmInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    fontSize: theme.fontSize.md,
+    marginBottom: theme.spacing.md,
+    textAlign: 'center',
+  },
+  confirmInputDark: {
+    borderColor: '#374151',
+    color: 'white',
+    backgroundColor: '#2C2C2E',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  cancelButton: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  cancelButtonText: {
+    color: '#6B7280',
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: theme.colors.error,
+  },
+  deleteButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
   },
 });
