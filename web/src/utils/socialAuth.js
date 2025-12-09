@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 
 /**
  * Get redirect URL based on platform (web vs mobile)
@@ -17,10 +17,17 @@ const getRedirectUrl = async () => {
     return 'ingk://auth/callback'
   }
 
-  // For web, use current origin
-  const origin = window.location.origin
-  console.log('OAuth Redirect URL:', `${origin}/auth/callback`)
-  return `${origin}/auth/callback`
+  const siteUrl =
+    import.meta.env.VITE_SITE_URL?.trim().replace(/\/+$/, '') ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+
+  if (!siteUrl) {
+    throw new Error('Site URL is not configured for OAuth redirect')
+  }
+
+  const redirectUrl = `${siteUrl}/auth/callback`
+  console.log('OAuth Redirect URL:', redirectUrl)
+  return redirectUrl
 }
 
 /**
@@ -164,8 +171,6 @@ export const handleOAuthCallback = async () => {
  */
 export const handleKakaoCallback = async (code) => {
   try {
-    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
     const REDIRECT_URI = await getRedirectUrl()
 
     console.log('Kakao callback - Redirect URI:', REDIRECT_URI)

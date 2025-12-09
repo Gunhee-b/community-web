@@ -15,7 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.rezom.community",
-      "buildNumber": "3",
+      "buildNumber": "7",
       "supportsTablet": false,
       "infoPlist": {
         "LSApplicationQueriesSchemes": [

@@ -18,6 +18,7 @@ import { useAuthStore, useAppStore } from '@/store';
 import { theme } from '@/constants/theme';
 import { supabase } from '@/services/supabase';
 import type { Answer, AnswerComment } from '@/types';
+import { ReportModal, BlockUserModal } from '@/components/moderation';
 
 /**
  * AnswerDetailScreen
@@ -40,6 +41,10 @@ export default function AnswerDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Report and Block state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
 
   useEffect(() => {
     fetchAnswerDetail();
@@ -268,6 +273,26 @@ export default function AnswerDetailScreen() {
               )}
             </View>
           )}
+
+          {/* Report and Block Buttons for non-owners */}
+          {user && answer.user_id !== user.id && (
+            <View style={styles.moderationButtons}>
+              <TouchableOpacity
+                style={styles.reportButton}
+                onPress={() => setShowReportModal(true)}
+              >
+                <Ionicons name="flag-outline" size={16} color="#FF9500" />
+                <Text style={styles.reportButtonText}>신고</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.blockButton}
+                onPress={() => setShowBlockModal(true)}
+              >
+                <Ionicons name="person-remove-outline" size={16} color="#FF3B30" />
+                <Text style={styles.blockButtonText}>차단</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Comments Section */}
@@ -367,6 +392,33 @@ export default function AnswerDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Report Modal */}
+      {answer && (
+        <ReportModal
+          visible={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          contentType="answer"
+          contentId={answer.id}
+          reportedUserId={answer.user_id}
+          onReportSuccess={() => {
+            fetchAnswerDetail();
+          }}
+        />
+      )}
+
+      {/* Block User Modal */}
+      {answer && (
+        <BlockUserModal
+          visible={showBlockModal}
+          onClose={() => setShowBlockModal(false)}
+          userId={answer.user_id}
+          username={username}
+          onBlockSuccess={() => {
+            router.back();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -593,6 +645,49 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     backgroundColor: '#8E8E93',
+  },
+
+  // Moderation Buttons
+  moderationButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  reportButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF5E6',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFE5B4',
+  },
+  reportButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF9500',
+  },
+  blockButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+  },
+  blockButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
 
   // Text Colors

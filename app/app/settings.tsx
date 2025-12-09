@@ -49,13 +49,11 @@ export default function SettingsScreen() {
   };
 
   const handleTermsPress = () => {
-    console.log('Navigate to terms');
-    // TODO: Navigate to terms screen
+    router.push('/terms' as any);
   };
 
   const handlePrivacyPress = () => {
-    console.log('Navigate to privacy');
-    // TODO: Navigate to privacy screen
+    router.push('/privacy' as any);
   };
 
   const handleVersionPress = () => {
@@ -140,8 +138,8 @@ export default function SettingsScreen() {
           </Text>
           <View style={[styles.card, isDark && styles.cardDark]}>
             {/* Theme */}
-            <View style={[styles.settingItem, styles.settingItemBorder, isDark && styles.settingItemBorderDark]}>
-              <View style={styles.settingHeader}>
+            <View style={[styles.settingItem, styles.settingItemBorder, isDark && styles.settingItemBorderDark, styles.themeSettingItem]}>
+              <View style={styles.settingLeft}>
                 <Ionicons
                   name="moon"
                   size={20}
@@ -156,20 +154,20 @@ export default function SettingsScreen() {
                   style={[
                     styles.themeButton,
                     appTheme === 'light' && styles.themeButtonActive,
-                    isDark && styles.themeButtonDark,
+                    isDark && !( appTheme === 'light') && styles.themeButtonDark,
                   ]}
                   onPress={() => handleThemeChange('light')}
                 >
                   <Ionicons
                     name="sunny"
                     size={18}
-                    color={appTheme === 'light' ? theme.colors.primary : isDark ? '#8E8E93' : '#6B7280'}
+                    color={appTheme === 'light' ? 'white' : isDark ? '#AEAEB2' : '#6B7280'}
                   />
                   <Text
                     style={[
                       styles.themeButtonText,
                       appTheme === 'light' && styles.themeButtonTextActive,
-                      isDark && styles.themeButtonTextDark,
+                      isDark && !(appTheme === 'light') && styles.themeButtonTextDark,
                     ]}
                   >
                     라이트
@@ -179,20 +177,20 @@ export default function SettingsScreen() {
                   style={[
                     styles.themeButton,
                     appTheme === 'dark' && styles.themeButtonActive,
-                    isDark && styles.themeButtonDark,
+                    isDark && !(appTheme === 'dark') && styles.themeButtonDark,
                   ]}
                   onPress={() => handleThemeChange('dark')}
                 >
                   <Ionicons
                     name="moon"
                     size={18}
-                    color={appTheme === 'dark' ? theme.colors.primary : isDark ? '#8E8E93' : '#6B7280'}
+                    color={appTheme === 'dark' ? 'white' : isDark ? '#AEAEB2' : '#6B7280'}
                   />
                   <Text
                     style={[
                       styles.themeButtonText,
                       appTheme === 'dark' && styles.themeButtonTextActive,
-                      isDark && styles.themeButtonTextDark,
+                      isDark && !(appTheme === 'dark') && styles.themeButtonTextDark,
                     ]}
                   >
                     다크
@@ -375,6 +373,26 @@ export default function SettingsScreen() {
           </Text>
           <View style={[styles.card, isDark && styles.cardDark]}>
             <TouchableOpacity
+              style={[styles.settingItem, styles.settingItemBorder, isDark && styles.settingItemBorderDark]}
+              onPress={() => router.push('/blocked-users' as any)}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons
+                  name="person-remove-outline"
+                  size={20}
+                  color={isDark ? '#8E8E93' : '#6B7280'}
+                />
+                <Text style={[styles.settingLabel, isDark && styles.settingLabelDark]}>
+                  차단 목록
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={isDark ? '#636366' : '#9CA3AF'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.settingItem}
               onPress={handleDeleteAccountPress}
             >
@@ -541,11 +559,10 @@ const styles = StyleSheet.create({
   settingItemBorderDark: {
     borderBottomColor: '#2C2C2E',
   },
-  settingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  themeSettingItem: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
     gap: 12,
-    marginBottom: theme.spacing.md,
   },
   settingLeft: {
     flexDirection: 'row',
@@ -591,28 +608,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    gap: 8,
+    gap: 6,
+    backgroundColor: 'white',
   },
   themeButtonDark: {
-    borderColor: '#374151',
+    borderColor: '#3A3A3C',
+    backgroundColor: '#2C2C2E',
   },
   themeButtonActive: {
     borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: theme.colors.primary,
   },
   themeButtonText: {
     fontSize: theme.fontSize.sm,
+    fontWeight: '600',
     color: '#6B7280',
   },
   themeButtonTextDark: {
-    color: '#8E8E93',
+    color: '#AEAEB2',
   },
   themeButtonTextActive: {
-    color: theme.colors.primary,
+    color: 'white',
+    fontWeight: '700',
   },
 
   // Logout & Delete

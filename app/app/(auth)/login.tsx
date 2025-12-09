@@ -21,7 +21,7 @@ import { theme } from '@/constants/theme';
  * LoginScreen
  *
  * 로그인 화면
- * - 소셜 로그인만 지원 (Google, Kakao, Naver)
+ * - 소셜 로그인만 지원 (Apple, Google, Kakao)
  */
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
@@ -30,21 +30,6 @@ export default function LoginScreen() {
   const { login } = useAuthStore();
   const { theme: appTheme } = useAppStore();
   const isDark = appTheme === 'dark';
-
-  // 🔧 개발 모드: Mock 로그인 (서버 연결 없이 테스트)
-  const handleDevLogin = () => {
-    const mockUser = {
-      id: '00000000-0000-0000-0000-000000000001', // UUID 형식으로 변경
-      username: '테스트유저',
-      email: 'test@example.com',
-      role: 'user' as const,
-      created_at: new Date().toISOString(),
-    };
-    const mockToken = 'mock-jwt-token-for-testing';
-
-    login(mockUser, mockToken, 'social');
-    console.log('✅ Dev Mode: Mock login successful');
-  };
 
   const handleSocialLogin = async (provider: 'google' | 'kakao' | 'naver' | 'apple') => {
     setIsLoading(true);
@@ -116,15 +101,17 @@ export default function LoginScreen() {
 
         {/* Social Login Buttons */}
         <View style={styles.socialButtons}>
-          <TouchableOpacity
-            style={[styles.socialButton, styles.appleButton, isDark && styles.socialButtonDark]}
-            onPress={() => handleSocialLogin('apple')}
-          >
-            <View style={[styles.socialIcon, { backgroundColor: '#000000' }]} />
-            <Text style={[styles.socialButtonText, styles.appleButtonText, isDark && styles.socialButtonTextDark]}>
-              Apple로 계속하기
-            </Text>
-          </TouchableOpacity>
+          {Platform.OS === 'ios' && (
+            <TouchableOpacity
+              style={[styles.socialButton, styles.appleButton]}
+              onPress={() => handleSocialLogin('apple')}
+            >
+              <View style={[styles.socialIcon, { backgroundColor: '#000000' }]} />
+              <Text style={[styles.socialButtonText, styles.appleButtonText]}>
+                Apple로 계속하기
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.socialButton, isDark && styles.socialButtonDark]}
@@ -137,25 +124,22 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.socialButton, isDark && styles.socialButtonDark]}
+            style={[styles.socialButton, styles.kakaoButton]}
             onPress={() => handleSocialLogin('kakao')}
           >
-            <View style={[styles.socialIcon, { backgroundColor: '#FEE500' }]} />
-            <Text style={[styles.socialButtonText, isDark && styles.socialButtonTextDark]}>
+            <View style={[styles.socialIcon, { backgroundColor: '#3C1E1E' }]} />
+            <Text style={[styles.socialButtonText, styles.kakaoButtonText]}>
               Kakao로 계속하기
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* 🔧 개발 모드: Mock 로그인 버튼 */}
-        <TouchableOpacity
-          style={styles.devButton}
-          onPress={handleDevLogin}
-        >
-          <Text style={styles.devButtonText}>
-            🔧 개발자 모드: 바로 입장하기 (테스트용)
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, isDark && styles.footerTextDark]}>
+            로그인 시 서비스 이용약관 및 개인정보처리방침에 동의하게 됩니다.
           </Text>
-        </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -217,7 +201,7 @@ const styles = StyleSheet.create({
   // Social Buttons
   socialButtons: {
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
   socialButton: {
     flexDirection: 'row',
@@ -249,23 +233,31 @@ const styles = StyleSheet.create({
   },
   appleButton: {
     backgroundColor: '#000000',
+    borderColor: '#000000',
   },
   appleButtonText: {
     color: 'white',
   },
-
-  // Dev Mode
-  devButton: {
-    marginTop: theme.spacing.xxl,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    backgroundColor: '#FF9500',
-    borderRadius: theme.borderRadius.lg,
-    alignItems: 'center',
+  kakaoButton: {
+    backgroundColor: '#FEE500',
+    borderColor: '#FEE500',
   },
-  devButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
+  kakaoButtonText: {
+    color: '#3C1E1E',
+  },
+
+  // Footer
+  footer: {
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+  },
+  footerText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  footerTextDark: {
+    color: '#8E8E93',
   },
 });

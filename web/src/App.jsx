@@ -1,5 +1,5 @@
 import { BrowserRouter } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Toaster } from 'react-hot-toast'
 import AppRoutes from './routes'
 import { useAuthStore } from './store/authStore'
@@ -16,7 +16,26 @@ function App() {
   const setUser = useAuthStore((state) => state.setUser)
   const initialize = useAuthStore((state) => state.initialize)
 
+  // useRef to ensure initialize runs only once (singleton pattern)
+  const hasInitializedRef = useRef(false)
+
   useEffect(() => {
+    // Skip if already initialized
+    if (hasInitializedRef.current) {
+      return
+    }
+
+    // Skip initialization on auth callback pages to avoid race condition
+    // The callback page will handle authentication itself
+    const isAuthCallback = window.location.pathname.startsWith('/auth/callback')
+    if (isAuthCallback) {
+      console.log('Skipping initialize on auth callback page')
+      hasInitializedRef.current = true
+      return
+    }
+
+    hasInitializedRef.current = true
+
     // Initialize auth state (check for social auth session)
     initialize()
   }, [])

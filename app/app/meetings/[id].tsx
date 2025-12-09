@@ -28,6 +28,7 @@ import { AuthService } from '@/services/auth';
 import { supabase } from '@/services/supabase';
 import { createNotification } from '@/services/notifications';
 import type { Meeting } from '@/types';
+import { ReportModal, BlockUserModal } from '@/components/moderation';
 
 interface Participant {
   id: number;
@@ -76,6 +77,10 @@ export default function MeetingDetailScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [lastReadAt, setLastReadAt] = useState<string | null>(null);
+
+  // Report and Block state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
 
   // Fetch meeting data on mount
   useEffect(() => {
@@ -758,6 +763,50 @@ export default function MeetingDetailScreen() {
           )}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Report and Block Floating Buttons */}
+      {currentUser && meeting && meeting.created_by && currentUser.id !== meeting.created_by && (
+        <View style={styles.floatingButtons}>
+          <TouchableOpacity
+            style={styles.floatingReportButton}
+            onPress={() => setShowReportModal(true)}
+          >
+            <Ionicons name="flag-outline" size={20} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.floatingBlockButton}
+            onPress={() => setShowBlockModal(true)}
+          >
+            <Ionicons name="person-remove-outline" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {meeting && (
+        <ReportModal
+          visible={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          contentType="meeting"
+          contentId={meeting.id}
+          reportedUserId={meeting.created_by}
+          onReportSuccess={() => {
+            fetchMeetingData();
+          }}
+        />
+      )}
+
+      {/* Block User Modal */}
+      {meeting && meeting.creator && (
+        <BlockUserModal
+          visible={showBlockModal}
+          onClose={() => setShowBlockModal(false)}
+          userId={meeting.created_by}
+          username={meeting.creator.username || '알 수 없음'}
+          onBlockSuccess={() => {
+            router.back();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1205,5 +1254,37 @@ const styles = StyleSheet.create({
     color: '#3C1E1E',
     fontSize: theme.fontSize.md,
     fontWeight: '600',
+  },
+  floatingButtons: {
+    position: 'absolute',
+    top: 70,
+    right: 16,
+    gap: 12,
+  },
+  floatingReportButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF9500',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  floatingBlockButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });

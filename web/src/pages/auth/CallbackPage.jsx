@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { handleOAuthCallback, handleKakaoCallback } from '../../utils/socialAuth'
 import Loading from '../../components/common/Loading'
+
+// Global flag to prevent duplicate processing across component instances
+let globalCallbackProcessing = false
 
 function CallbackPage() {
   const navigate = useNavigate()
@@ -11,16 +14,30 @@ function CallbackPage() {
   const setSession = useAuthStore((state) => state.setSession)
   const [error, setError] = useState(null)
 
+  // useRef to ensure the effect runs only once per mount (singleton pattern)
+  const hasProcessedRef = useRef(false)
+
   useEffect(() => {
     const processCallback = async () => {
-      try {
-        console.log('CallbackPage mounted')
-        console.log('Search params:', Object.fromEntries(searchParams))
-        console.log('Hash:', window.location.hash)
+      // Skip if already processed (singleton pattern)
+      if (hasProcessedRef.current || globalCallbackProcessing) {
+        console.log('CallbackPage: Already processed, skipping...')
+        return
+      }
 
-        const state = searchParams.get('state')
-        const code = searchParams.get('code')
-        const errorParam = searchParams.get('error')
+      const code = searchParams.get('code')
+      const state = searchParams.get('state')
+      const errorParam = searchParams.get('error')
+
+      // Mark as processing immediately if we have a code
+      if (code) {
+        hasProcessedRef.current = true
+        globalCallbackProcessing = true
+      }
+
+      try {
+        console.log('CallbackPage processing')
+        console.log('Search params:', Object.fromEntries(searchParams))
 
         // Check for error from OAuth provider
         if (errorParam) {
@@ -33,40 +50,42 @@ function CallbackPage() {
 
           if (result.success) {
             setUser(result.user)
-
-            // Always redirect to home for now (welcome page doesn't exist)
-            navigate('/')
+            // Clear the code from URL and redirect
+            window.history.replaceState({}, '', '/')
+            navigate('/', { replace: true })
           } else {
             throw new Error('카카오 인증 처리 실패')
           }
         }
         // Handle Google callback
-        else {
+        else if (code || window.location.hash) {
           const result = await handleOAuthCallback()
 
           if (result.success && result.user && result.session) {
             setUser(result.user)
             setSession(result.session)
-
-            // Always redirect to home (welcome page doesn't exist)
-            navigate('/')
+            window.history.replaceState({}, '', '/')
+            navigate('/', { replace: true })
           } else {
             throw new Error('인증 처리 실패')
           }
+        } else {
+          throw new Error('인증 코드가 없습니다')
         }
       } catch (err) {
         console.error('Callback processing error:', err)
         setError(err.message || '인증 처리 중 오류가 발생했습니다')
+        globalCallbackProcessing = false // Reset on error
 
         // Redirect to login after 3 seconds
         setTimeout(() => {
-          navigate('/login')
+          navigate('/login', { replace: true })
         }, 3000)
       }
     }
 
     processCallback()
-  }, [searchParams, navigate, setUser, setSession])
+  }, []) // Empty dependency array - run only once on mount
 
   if (error) {
     return (

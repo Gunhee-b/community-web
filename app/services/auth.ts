@@ -2,7 +2,7 @@ import { storage, secureStorage } from '../utils/storage-native';
 import { post, get, API_ENDPOINTS } from './api';
 import { User } from '../types';
 import * as WebBrowser from 'expo-web-browser';
-import { supabase } from './supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import Constants from 'expo-constants';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
@@ -790,13 +790,12 @@ export class AuthService {
       // 1. Kakao OAuth URL 생성
       // Kakao REST API는 웹 형태의 redirect URI만 지원
       // 모바일 앱은 Supabase를 통한 웹 redirect URI 사용
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
+      if (!SUPABASE_URL) {
         throw new Error('Supabase 설정이 누락되었습니다');
       }
 
       // Supabase Edge Function이 처리할 웹 형태의 Redirect URI
-      const redirectUri = `${supabaseUrl}/functions/v1/kakao-callback`;
+      const redirectUri = `${SUPABASE_URL}/functions/v1/kakao-callback`;
       const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
 
       console.log('Kakao Auth URL:', kakaoAuthUrl);
@@ -826,19 +825,20 @@ export class AuthService {
       console.log('Kakao code received:', code.substring(0, 20) + '...');
 
       // 4. Supabase Edge Function으로 토큰 교환 및 사용자 생성
-      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (!supabaseAnonKey) {
+      if (!SUPABASE_ANON_KEY) {
         throw new Error('Supabase Anon Key가 누락되었습니다');
       }
 
-      const edgeFunctionUrl = `${supabaseUrl}/functions/v1/kakao-auth`;
+      const edgeFunctionUrl = `${SUPABASE_URL}/functions/v1/kakao-auth`;
+
+      console.log('Calling Edge Function:', edgeFunctionUrl);
+      console.log('Using SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'present' : 'missing');
 
       const response = await fetch(edgeFunctionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
           code: code,

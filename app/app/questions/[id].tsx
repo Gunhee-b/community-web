@@ -29,6 +29,7 @@ import {
 import { AuthService } from '@/services/auth';
 import { supabase } from '@/services/supabase';
 import type { Question, Answer } from '@/types';
+import { ReportModal, BlockUserModal } from '@/components/moderation';
 
 /**
  * QuestionDetailScreen
@@ -61,6 +62,12 @@ export default function QuestionDetailScreen() {
 
   // Edit state
   const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
+
+  // Report and Block state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportingAnswer, setReportingAnswer] = useState<Answer | null>(null);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockingUser, setBlockingUser] = useState<{ id: string; username: string } | null>(null);
 
   // Fetch question and answers on mount
   useEffect(() => {
@@ -540,6 +547,32 @@ export default function QuestionDetailScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
+
+                  {/* Report and Block buttons for non-owners */}
+                  {!isOwner && currentUser && (
+                    <View style={styles.answerActions}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.reportButton]}
+                        onPress={() => {
+                          setReportingAnswer(ans);
+                          setShowReportModal(true);
+                        }}
+                      >
+                        <Ionicons name="flag-outline" size={16} color="#FF9500" />
+                        <Text style={styles.reportButtonText}>신고</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.blockButton]}
+                        onPress={() => {
+                          setBlockingUser({ id: ans.user_id, username });
+                          setShowBlockModal(true);
+                        }}
+                      >
+                        <Ionicons name="person-remove-outline" size={16} color="#FF3B30" />
+                        <Text style={styles.blockButtonText}>차단</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               );
             })
@@ -677,6 +710,40 @@ export default function QuestionDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Report Modal */}
+      {reportingAnswer && (
+        <ReportModal
+          visible={showReportModal}
+          onClose={() => {
+            setShowReportModal(false);
+            setReportingAnswer(null);
+          }}
+          contentType="answer"
+          contentId={reportingAnswer.id}
+          reportedUserId={reportingAnswer.user_id}
+          onReportSuccess={() => {
+            // Optionally refresh the answers list or show a success message
+            fetchQuestionData();
+          }}
+        />
+      )}
+
+      {/* Block User Modal */}
+      {blockingUser && (
+        <BlockUserModal
+          visible={showBlockModal}
+          onClose={() => {
+            setShowBlockModal(false);
+            setBlockingUser(null);
+          }}
+          userId={blockingUser.id}
+          username={blockingUser.username}
+          onBlockSuccess={() => {
+            fetchQuestionData();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1090,5 +1157,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#EF4444',
+  },
+  reportButton: {
+    backgroundColor: '#FFF5E6',
+  },
+  reportButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF9500',
+  },
+  blockButton: {
+    backgroundColor: '#FFEBEE',
+  },
+  blockButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
 });
