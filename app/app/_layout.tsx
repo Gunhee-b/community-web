@@ -93,8 +93,12 @@ export default function RootLayout() {
     // segments가 초기화되지 않았으면 대기 (Root Layout 마운트 전)
     if (!segments || segments.length === 0) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inTabsGroup = segments[0] === '(tabs)';
+    const firstSegment = segments[0] as string;
+    const secondSegment = segments.length > 1 ? (segments[1] as string) : null;
+
+    const inAuthGroup = firstSegment === '(auth)';
+    const inTabsGroup = firstSegment === '(tabs)';
+    const inProfileSetup = secondSegment === 'profile-setup';
 
     // 무한 루프 방지: 이미 올바른 그룹에 있으면 리다이렉트하지 않음
     if (!user && !inAuthGroup) {
@@ -102,11 +106,23 @@ export default function RootLayout() {
       setTimeout(() => {
         router.replace('/(auth)/login');
       }, 0);
-    } else if (user && !inTabsGroup && inAuthGroup) {
-      // 로그인 되어 있고, 탭 화면이 아니고, 인증 화면에 있으면 메인 화면으로
-      setTimeout(() => {
-        router.replace('/(tabs)/home');
-      }, 0);
+    } else if (user) {
+      // 로그인 되어 있는 경우
+      // Profile check: username이 없거나 비어있으면 프로필 설정 화면으로
+      const needsProfileSetup = !user.username || user.username.trim() === '';
+
+      if (needsProfileSetup && !inProfileSetup) {
+        // 프로필 설정이 필요하고, 프로필 설정 화면이 아니면 이동
+        console.log('📝 Profile setup required, redirecting...');
+        setTimeout(() => {
+          router.replace('/(auth)/profile-setup' as any);
+        }, 0);
+      } else if (!needsProfileSetup && !inTabsGroup && inAuthGroup) {
+        // 프로필 완료됨, 인증 화면에 있으면 메인 화면으로
+        setTimeout(() => {
+          router.replace('/(tabs)/home');
+        }, 0);
+      }
     }
   }, [user, isLoading, segments]);
 

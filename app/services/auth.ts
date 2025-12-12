@@ -652,20 +652,33 @@ export class AuthService {
                   throw syncError;
                 }
 
-                if (!syncData.success) {
-                  throw new Error(syncData.error || '사용자 정보 동기화에 실패했습니다');
+                // Handle raw Table Row response (snake_case)
+                // Response: { id, username, full_name, avatar_url, role, ... }
+                if (!syncData || !syncData.id) {
+                  console.error('Invalid sync response:', syncData);
+                  throw new Error('사용자 정보 동기화에 실패했습니다');
                 }
+
+                // Map snake_case DB response to camelCase User type
+                const mappedUser: User = {
+                  id: syncData.id,
+                  username: syncData.username,
+                  email: syncData.email,
+                  role: (syncData.role?.toLowerCase() || 'member') as User['role'],
+                  created_at: syncData.created_at,
+                  avatar_url: syncData.avatar_url,
+                };
 
                 // 인증 데이터 저장
                 const authResponse: AuthResponse = {
-                  user: syncData.user,
+                  user: mappedUser,
                   access_token: accessToken,
                   refresh_token: refreshToken,
                 };
 
                 await this.saveAuthData(authResponse, 'social');
 
-                console.log('✅ Google login successful:', syncData.user.username);
+                console.log('✅ Google login successful:', mappedUser.username);
 
                 return {
                   success: true,
@@ -734,13 +747,25 @@ export class AuthService {
           throw syncError;
         }
 
-        if (!syncData.success) {
-          throw new Error(syncData.error || '사용자 정보 동기화에 실패했습니다');
+        // Handle raw Table Row response (snake_case)
+        if (!syncData || !syncData.id) {
+          console.error('Invalid sync response:', syncData);
+          throw new Error('사용자 정보 동기화에 실패했습니다');
         }
+
+        // Map snake_case DB response to camelCase User type
+        const mappedUser: User = {
+          id: syncData.id,
+          username: syncData.username,
+          email: syncData.email,
+          role: (syncData.role?.toLowerCase() || 'member') as User['role'],
+          created_at: syncData.created_at,
+          avatar_url: syncData.avatar_url,
+        };
 
         // AuthResponse 형식으로 변환하여 저장
         const authResponse: AuthResponse = {
-          user: syncData.user,
+          user: mappedUser,
           access_token: sessionData.session.access_token,
           refresh_token: sessionData.session.refresh_token,
         };
@@ -988,20 +1013,32 @@ export class AuthService {
         throw syncError;
       }
 
-      if (!syncData.success) {
-        throw new Error(syncData.error || '사용자 정보 동기화에 실패했습니다');
+      // Handle raw Table Row response (snake_case)
+      if (!syncData || !syncData.id) {
+        console.error('Invalid sync response:', syncData);
+        throw new Error('사용자 정보 동기화에 실패했습니다');
       }
+
+      // Map snake_case DB response to camelCase User type
+      const mappedUser: User = {
+        id: syncData.id,
+        username: syncData.username,
+        email: syncData.email,
+        role: (syncData.role?.toLowerCase() || 'member') as User['role'],
+        created_at: syncData.created_at,
+        avatar_url: syncData.avatar_url,
+      };
 
       // 4. 인증 데이터 저장
       const authResponse: AuthResponse = {
-        user: syncData.user,
+        user: mappedUser,
         access_token: `apple_${identityToken}`,
         refresh_token: authorizationCode || undefined,
       };
 
       await this.saveAuthData(authResponse, 'social');
 
-      console.log('✅ Apple login successful:', syncData.user.username);
+      console.log('✅ Apple login successful:', mappedUser.username);
 
       return {
         success: true,
