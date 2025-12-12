@@ -347,8 +347,9 @@ function CreateMeetingPage() {
         meetingData.is_template = false
       }
 
+      // Changed from 'offline_meetings' to 'meetings'
       const { data: insertedMeeting, error: meetingError } = await supabase
-        .from('offline_meetings')
+        .from('meetings')
         .insert([meetingData])
         .select('*')
         .single()

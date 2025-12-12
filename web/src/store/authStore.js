@@ -109,14 +109,24 @@ export const useAuthStore = create(
             } = await supabase.auth.getUser()
 
             if (authUser) {
-              // Fetch user data from our users table
-              const { data: userData, error } = await supabase
-                .from('users')
+              // Fetch user data from profiles table (changed from 'users')
+              const { data: profileData, error } = await supabase
+                .from('profiles')
                 .select('*')
-                .eq('email', authUser.email)
+                .eq('id', authUser.id)
                 .maybeSingle()
 
-              if (!error && userData) {
+              if (!error && profileData) {
+                // Map snake_case DB response to frontend state
+                const userData = {
+                  id: profileData.id,
+                  username: profileData.username,
+                  fullName: profileData.full_name,
+                  avatarUrl: profileData.avatar_url,
+                  role: profileData.role || 'USER',
+                  isActive: profileData.is_active ?? true,
+                  email: authUser.email,
+                }
                 set({
                   user: userData,
                   session,
@@ -124,7 +134,7 @@ export const useAuthStore = create(
                 })
                 return
               } else if (error) {
-                console.error('Error fetching user data:', error)
+                console.error('Error fetching profile data:', error)
               }
             }
           }

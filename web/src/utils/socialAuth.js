@@ -144,7 +144,7 @@ export const handleOAuthCallback = async () => {
           success: true,
           user: result.user,
           session: sessionData.session,
-          isNew: result.is_new,
+          isNew: result.isNew,
         }
       } catch (syncError) {
         console.error('❌ User sync failed:', syncError)
@@ -267,17 +267,18 @@ export const syncSocialUser = async (authUser) => {
     console.log('User sync successful:', profile)
 
     // Return in the format expected by handleOAuthCallback
-    // Profile is already in snake_case format from the DB
+    // Map snake_case DB response to camelCase for frontend state
     return {
       success: true,
       user: {
         id: profile.id,
         username: profile.username,
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        role: profile.role,
+        fullName: profile.full_name,      // camelCase for frontend
+        avatarUrl: profile.avatar_url,    // camelCase for frontend
+        role: profile.role || 'USER',
+        isActive: profile.is_active ?? true,
       },
-      is_new: profile.is_new || false,
+      isNew: profile.is_new || false,
     }
   } catch (error) {
     console.error('Sync social user error:', error)

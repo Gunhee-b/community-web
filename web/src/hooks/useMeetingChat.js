@@ -217,9 +217,9 @@ export const useMeetingChat = (meetingId, user, isParticipant) => {
           if (payload.new.user_id !== user.id) {
             console.log('Message from another user, adding notification')
 
-            // Fetch sender's username
+            // Fetch sender's username (changed from 'users' to 'profiles')
             const { data: senderData } = await supabase
-              .from('users')
+              .from('profiles')
               .select('username')
               .eq('id', payload.new.user_id)
               .single()

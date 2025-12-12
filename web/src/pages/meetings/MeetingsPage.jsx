@@ -28,34 +28,34 @@ function MeetingsPage() {
 
   const fetchMeetings = async () => {
     try {
+      // Changed from 'offline_meetings' to 'meetings', and host:users to host:profiles
       let query = supabase
-        .from('offline_meetings')
+        .from('meetings')
         .select(`
           *,
-          host:users!host_id(username),
+          host:profiles!host_id(username),
           participants:meeting_participants(count)
         `)
-        .eq('is_template', false)  // Exclude templates - only show actual meeting instances
 
       if (filter === 'regular') {
-        // 정기 모임만 표시
+        // 정기 모임만 표시 (meeting_type → type)
         query = query
-          .eq('meeting_type', 'regular')
-          .gte('start_datetime', new Date().toISOString())
+          .eq('type', 'regular')
+          .gte('meeting_datetime', new Date().toISOString())
           .in('status', ['recruiting', 'confirmed'])
       } else if (filter === 'casual') {
         // 즉흥 모임 중 모집 중인 것만
         query = query
-          .eq('meeting_type', 'casual')
-          .gte('start_datetime', new Date().toISOString())
+          .neq('type', 'regular')
+          .gte('meeting_datetime', new Date().toISOString())
           .in('status', ['recruiting', 'confirmed'])
       } else if (filter === 'past') {
         // 지난 모임 (관리자 전용) - 모든 타입의 지난 모임
         query = query
-          .lt('start_datetime', new Date().toISOString())
+          .lt('meeting_datetime', new Date().toISOString())
       }
 
-      const { data } = await query.order('start_datetime', {
+      const { data } = await query.order('meeting_datetime', {
         ascending: filter !== 'past',
       })
 

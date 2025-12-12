@@ -18,14 +18,14 @@ function AdminDashboardPage() {
 
   const fetchStats = async () => {
     try {
-      // Total users
+      // Total users (changed from 'users' to 'profiles')
       const { count: totalUsers } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*', { count: 'exact', head: true })
 
-      // Active users
+      // Active users (changed from 'users' to 'profiles')
       const { count: activeUsers } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true)
 
@@ -35,9 +35,9 @@ function AdminDashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active')
 
-      // Active meetings
+      // Active meetings (changed from 'offline_meetings' to 'meetings')
       const { count: activeMeetings } = await supabase
-        .from('offline_meetings')
+        .from('meetings')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'recruiting')
 

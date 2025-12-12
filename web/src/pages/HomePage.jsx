@@ -37,17 +37,17 @@ function HomePage() {
 
       setVotingPeriod(votingData)
 
-      // Fetch upcoming meetings
+      // Fetch upcoming meetings (changed from 'offline_meetings' to 'meetings')
       const { data: meetingsData } = await supabase
-        .from('offline_meetings')
+        .from('meetings')
         .select(`
           *,
-          host:users!host_id(username),
+          host:profiles!host_id(username),
           participants:meeting_participants(count)
         `)
         .eq('status', 'recruiting')
-        .gte('start_datetime', new Date().toISOString())
-        .order('start_datetime', { ascending: true })
+        .gte('meeting_datetime', new Date().toISOString())
+        .order('meeting_datetime', { ascending: true })
         .limit(6)
 
       setMeetings(meetingsData || [])

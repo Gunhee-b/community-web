@@ -79,10 +79,10 @@ function MeetingDetailPage() {
   // Fetch meeting data - memoized to prevent infinite loops
   const fetchMeetingData = useCallback(async () => {
     try {
-      // Fetch meeting details
+      // Fetch meeting details (changed from 'offline_meetings' to 'meetings')
       const { data: meetingData, error: meetingError } = await supabase
-        .from('offline_meetings')
-        .select('*, host:users!host_id(username)')
+        .from('meetings')
+        .select('*, host:profiles!host_id(username)')
         .eq('id', id)
         .single()
 
@@ -92,10 +92,10 @@ function MeetingDetailPage() {
 
       setMeeting(meetingData)
 
-      // Fetch participants
+      // Fetch participants (changed user:users to user:profiles)
       const { data: participantsData, error: participantsError } = await supabase
         .from('meeting_participants')
-        .select('*, user:users(username)')
+        .select('*, user:profiles(username)')
         .eq('meeting_id', id)
         .is('cancelled_at', null)
 
@@ -397,23 +397,20 @@ function MeetingDetailPage() {
         image_url: imageUrl
       })
 
+      // Changed from 'offline_meetings' to 'meetings', start_datetime to meeting_datetime
       const { data, error } = await supabase
-        .from('offline_meetings')
+        .from('meetings')
         .update({
           location: editForm.location,
-          host_introduction: editForm.host_introduction || null,
           description: editForm.description || null,
-          host_style: editForm.host_style || null,
-          host_sns_link: editForm.host_sns_link || null,
           kakao_openchat_link: editForm.kakao_openchat_link || null,
-          start_datetime: startDatetimeISO,
-          end_datetime: endDatetimeISO,
+          meeting_datetime: startDatetimeISO,
           max_participants: parseInt(editForm.max_participants),
           purpose: editForm.purpose,
           image_url: imageUrl
         })
         .eq('id', id)
-        .select('*, host:users!host_id(username)')
+        .select('*, host:profiles!host_id(username)')
 
       console.log('Update result:', { data, error })
 
@@ -464,9 +461,9 @@ function MeetingDetailPage() {
       }
       console.log('Participants deleted successfully:', deletedParticipants?.length || 0, 'records')
 
-      // Step 3: Now safe to delete the meeting
+      // Step 3: Now safe to delete the meeting (changed from 'offline_meetings' to 'meetings')
       const { data: deletedMeeting, error: meetingError } = await supabase
-        .from('offline_meetings')
+        .from('meetings')
         .delete()
         .eq('id', id)
         .select()

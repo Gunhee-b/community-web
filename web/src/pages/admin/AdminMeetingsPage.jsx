@@ -22,21 +22,22 @@ function AdminMeetingsPage() {
 
   const fetchMeetings = async () => {
     try {
+      // Changed from 'offline_meetings' to 'meetings', host:users to host:profiles
       let query = supabase
-        .from('offline_meetings')
+        .from('meetings')
         .select(`
           *,
-          host:users!host_id(username),
+          host:profiles!host_id(username),
           participants:meeting_participants(count)
         `)
 
       if (filter === 'upcoming') {
-        query = query.gte('start_datetime', new Date().toISOString())
+        query = query.gte('meeting_datetime', new Date().toISOString())
       } else if (filter === 'past') {
-        query = query.lt('start_datetime', new Date().toISOString())
+        query = query.lt('meeting_datetime', new Date().toISOString())
       }
 
-      const { data, error } = await query.order('start_datetime', { ascending: false })
+      const { data, error } = await query.order('meeting_datetime', { ascending: false })
 
       if (error) throw error
 
@@ -74,9 +75,9 @@ function AdminMeetingsPage() {
 
       if (participantsError) throw participantsError
 
-      // Delete meeting
+      // Delete meeting (changed from 'offline_meetings' to 'meetings')
       const { error: meetingError } = await supabase
-        .from('offline_meetings')
+        .from('meetings')
         .delete()
         .eq('id', selectedMeeting.id)
 
