@@ -34,7 +34,7 @@ function MeetingsPage() {
         .from('meetings')
         .select(`
           *,
-          host:profiles!host_id(username),
+          host:profiles(username),
           participants:meeting_participants(id)
         `)
 

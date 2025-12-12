@@ -81,7 +81,7 @@ function MeetingDetailPage() {
       // Fetch meeting details (changed from 'offline_meetings' to 'meetings')
       const { data: meetingData, error: meetingError } = await supabase
         .from('meetings')
-        .select('*, host:profiles!host_id(username)')
+        .select('*, host:profiles(username)')
         .eq('id', id)
         .single()
 
@@ -408,7 +408,7 @@ function MeetingDetailPage() {
           image_url: imageUrl
         })
         .eq('id', id)
-        .select('*, host:profiles!host_id(username)')
+        .select('*, host:profiles(username)')
 
       console.log('Update result:', { data, error })
 
