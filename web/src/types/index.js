@@ -140,12 +140,15 @@
 export function mapDbProfileToUser(dbProfile) {
   if (!dbProfile) return null
 
+  // Normalize role to lowercase: 'ADMIN' -> 'admin', 'USER' -> 'user'
+  const normalizedRole = (dbProfile.role || 'user').toLowerCase()
+
   return {
     id: dbProfile.id,
     username: dbProfile.username,
     fullName: dbProfile.full_name,
     avatarUrl: dbProfile.avatar_url,
-    role: dbProfile.role || 'USER',
+    role: normalizedRole,
     isActive: dbProfile.is_active ?? true,
     email: dbProfile.email || null,
   }

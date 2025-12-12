@@ -268,6 +268,9 @@ export const syncSocialUser = async (authUser) => {
 
     // Return in the format expected by handleOAuthCallback
     // Map snake_case DB response to camelCase for frontend state
+    const mappedRole = (profile.role || 'user').toLowerCase() // Normalize: 'ADMIN' -> 'admin'
+    console.log('🔐 Mapped User Role:', mappedRole, '(original:', profile.role, ')')
+
     return {
       success: true,
       user: {
@@ -275,7 +278,7 @@ export const syncSocialUser = async (authUser) => {
         username: profile.username,
         fullName: profile.full_name,      // camelCase for frontend
         avatarUrl: profile.avatar_url,    // camelCase for frontend
-        role: profile.role || 'USER',
+        role: mappedRole,
         isActive: profile.is_active ?? true,
       },
       isNew: profile.is_new || false,

@@ -118,12 +118,16 @@ export const useAuthStore = create(
 
               if (!error && profileData) {
                 // Map snake_case DB response to frontend state
+                // Normalize role to lowercase: 'ADMIN' -> 'admin'
+                const mappedRole = (profileData.role || 'user').toLowerCase()
+                console.log('🔐 Mapped User Role:', mappedRole, '(original:', profileData.role, ')')
+
                 const userData = {
                   id: profileData.id,
                   username: profileData.username,
                   fullName: profileData.full_name,
                   avatarUrl: profileData.avatar_url,
-                  role: profileData.role || 'USER',
+                  role: mappedRole,
                   isActive: profileData.is_active ?? true,
                   email: authUser.email,
                 }
