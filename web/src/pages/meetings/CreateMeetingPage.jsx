@@ -320,34 +320,25 @@ function CreateMeetingPage() {
         }
       }
 
-      // Prepare meeting data based on meeting type
+      // Prepare meeting data matching NEW meetings table schema
+      // Schema columns: id, host_id, title, description, location, location_detail,
+      //                 meeting_datetime, max_participants, current_participants,
+      //                 purpose, status, image_url, kakao_openchat_link, type, created_at
       const meetingData = {
         host_id: user.id,
+        title: formData.location, // Use location as title for now
+        description: formData.description || null,
         location: formData.location,
-        host_introduction: formData.hostIntroduction,
-        description: formData.description,
-        kakao_openchat_link: formData.kakaoOpenchatLink,
-        start_datetime: startDatetime.toISOString(),
-        end_datetime: endDatetime.toISOString(),
+        location_detail: formData.locationDetail || null,
+        meeting_datetime: startDatetime.toISOString(), // Changed from start_datetime
         max_participants: parseInt(formData.maxParticipants),
         purpose: formData.purpose,
         image_url: imageUrl,
-        meeting_type: formData.meetingType,
+        kakao_openchat_link: formData.kakaoOpenchatLink || null,
+        type: formData.meetingType || 'regular', // Changed from meeting_type
       }
 
-      // Add type-specific fields
-      if (formData.meetingType === 'regular') {
-        meetingData.recurrence_day_of_week = parseInt(formData.recurrenceDayOfWeek)
-        meetingData.recurrence_time = formData.recurrenceTime
-        meetingData.recurrence_end_time = formData.recurrenceEndTime
-        // Mark regular meetings as templates
-        meetingData.is_template = true
-      } else {
-        meetingData.casual_meeting_type = formData.casualMeetingType
-        meetingData.is_template = false
-      }
-
-      // Changed from 'offline_meetings' to 'meetings'
+      // Insert meeting into new 'meetings' table
       const { data: insertedMeeting, error: meetingError } = await supabase
         .from('meetings')
         .insert([meetingData])
@@ -356,45 +347,17 @@ function CreateMeetingPage() {
 
       if (meetingError) throw meetingError
 
-      // For regular meetings (templates), generate the first week's meeting
-      if (formData.meetingType === 'regular') {
-        try {
-          const { data: firstWeekMeeting, error: generateError } = await supabase
-            .rpc('generate_meeting_from_template', {
-              p_template_id: insertedMeeting.id,
-              p_week_number: 1
-            })
+      // Auto-join host as first participant
+      const { error: participantError } = await supabase
+        .from('meeting_participants')
+        .insert([{
+          meeting_id: insertedMeeting.id,
+          user_id: user.id,
+        }])
 
-          if (generateError) {
-            console.error('Error generating first week meeting:', generateError)
-            throw new Error('첫 주차 모임 생성 중 오류가 발생했습니다')
-          }
-
-          // Auto-join host as participant in the first week's meeting
-          if (firstWeekMeeting) {
-            await supabase.from('meeting_participants').insert([
-              {
-                meeting_id: firstWeekMeeting,
-                user_id: user.id,
-              },
-            ])
-
-            // Navigate to the first week's meeting (not the template)
-            navigate(`/meetings/${firstWeekMeeting}`)
-            return
-          }
-        } catch (err) {
-          console.error('Error generating first week:', err)
-          // Fall through to template navigation if generation fails
-        }
-      } else {
-        // Auto-join as host for casual meetings
-        await supabase.from('meeting_participants').insert([
-          {
-            meeting_id: insertedMeeting.id,
-            user_id: user.id,
-          },
-        ])
+      if (participantError) {
+        console.error('Error adding host as participant:', participantError)
+        // Continue anyway - meeting was created successfully
       }
 
       navigate(`/meetings/${insertedMeeting.id}`)

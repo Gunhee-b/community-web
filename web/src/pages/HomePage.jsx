@@ -197,7 +197,7 @@ function HomePage() {
                       {meeting.purpose === 'coffee' ? '☕ 커피' : '🍺 술'}
                     </span>
                     <span className="ml-2 text-sm text-gray-500">
-                      {getDday(meeting.start_datetime)}
+                      {getDday(meeting.meeting_datetime)}
                     </span>
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-1">

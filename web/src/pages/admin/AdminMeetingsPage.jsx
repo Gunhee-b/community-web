@@ -96,7 +96,7 @@ function AdminMeetingsPage() {
 
   const getStatusBadge = (meeting) => {
     const now = new Date()
-    const startDate = new Date(meeting.start_datetime)
+    const startDate = new Date(meeting.meeting_datetime)
 
     if (meeting.status === 'closed') {
       return <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700">모집 마감</span>
@@ -186,9 +186,9 @@ function AdminMeetingsPage() {
                     <td className="py-3 px-4">{meeting.host?.username}</td>
                     <td className="py-3 px-4">
                       <div className="text-sm">
-                        <div>{formatDate(meeting.start_datetime, 'yyyy-MM-dd')}</div>
+                        <div>{formatDate(meeting.meeting_datetime, 'yyyy-MM-dd')}</div>
                         <div className="text-gray-500">
-                          {formatDate(meeting.start_datetime, 'HH:mm')} - {formatDate(meeting.end_datetime, 'HH:mm')}
+                          {formatDate(meeting.meeting_datetime, 'HH:mm')}
                         </div>
                       </div>
                     </td>

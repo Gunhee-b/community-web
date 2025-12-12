@@ -35,8 +35,8 @@ function MeetingDetailPage() {
   // Check if user is logged in
   const isLoggedIn = !!user
 
-  // Check if meeting has ended
-  const hasMeetingEnded = meeting ? new Date(meeting.end_datetime) < new Date() : false
+  // Check if meeting has ended (using meeting_datetime since end_datetime removed)
+  const hasMeetingEnded = meeting ? new Date(meeting.meeting_datetime) < new Date() : false
 
   // Check if user is the host
   const isHost = isLoggedIn && meeting && user.id === meeting.host_id
@@ -44,15 +44,14 @@ function MeetingDetailPage() {
   // Edit modal state
   const { isOpen: editModalOpen, open: openEditModal, close: closeEditModal } = useModal(false)
   const { isOpen: isEditImageModalOpen, open: openEditImageModal, close: closeEditImageModal } = useModal(false)
+  // Updated editForm to match new schema columns
   const [editForm, setEditForm] = useState({
+    title: '',
     location: '',
-    host_introduction: '',
+    location_detail: '',
     description: '',
-    host_style: '',
-    host_sns_link: '',
     kakao_openchat_link: '',
-    start_datetime: '',
-    end_datetime: '',
+    meeting_datetime: '',
     max_participants: '',
     purpose: 'coffee'
   })
@@ -224,15 +223,14 @@ function MeetingDetailPage() {
     if (!meeting) return
 
     // Format datetime for input (YYYY-MM-DDTHH:mm) using local timezone
+    // Updated to match new schema columns
     setEditForm({
+      title: meeting.title || '',
       location: meeting.location,
-      host_introduction: meeting.host_introduction || '',
+      location_detail: meeting.location_detail || '',
       description: meeting.description || '',
-      host_style: meeting.host_style || '',
-      host_sns_link: meeting.host_sns_link || '',
       kakao_openchat_link: meeting.kakao_openchat_link || '',
-      start_datetime: toLocalDateTimeString(meeting.start_datetime),
-      end_datetime: toLocalDateTimeString(meeting.end_datetime),
+      meeting_datetime: toLocalDateTimeString(meeting.meeting_datetime),
       max_participants: meeting.max_participants.toString(),
       purpose: meeting.purpose
     })
@@ -249,11 +247,8 @@ function MeetingDetailPage() {
     e.preventDefault()
 
     try {
-      // Convert datetime-local strings to ISO format (UTC)
-      // datetime-local format: YYYY-MM-DDTHH:mm (local time)
-      // ISO format: YYYY-MM-DDTHH:mm:ss.sssZ (UTC time)
-      const startDatetimeISO = new Date(editForm.start_datetime).toISOString()
-      const endDatetimeISO = editForm.end_datetime ? new Date(editForm.end_datetime).toISOString() : null
+      // Convert datetime-local string to ISO format (UTC)
+      const meetingDatetimeISO = new Date(editForm.meeting_datetime).toISOString()
 
       let imageUrl = meeting.image_url // Keep existing image URL by default
 
@@ -389,22 +384,25 @@ function MeetingDetailPage() {
       }
 
       console.log('Updating meeting with:', {
+        title: editForm.title,
         location: editForm.location,
-        start_datetime: startDatetimeISO,
-        end_datetime: endDatetimeISO,
+        location_detail: editForm.location_detail,
+        meeting_datetime: meetingDatetimeISO,
         max_participants: parseInt(editForm.max_participants),
         purpose: editForm.purpose,
         image_url: imageUrl
       })
 
-      // Changed from 'offline_meetings' to 'meetings', start_datetime to meeting_datetime
+      // Update meeting with new schema columns
       const { data, error } = await supabase
         .from('meetings')
         .update({
+          title: editForm.title || editForm.location,
           location: editForm.location,
+          location_detail: editForm.location_detail || null,
           description: editForm.description || null,
           kakao_openchat_link: editForm.kakao_openchat_link || null,
-          meeting_datetime: startDatetimeISO,
+          meeting_datetime: meetingDatetimeISO,
           max_participants: parseInt(editForm.max_participants),
           purpose: editForm.purpose,
           image_url: imageUrl

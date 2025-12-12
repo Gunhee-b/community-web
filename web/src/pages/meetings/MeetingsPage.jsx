@@ -143,32 +143,19 @@ function MeetingsPage() {
                   />
                 )}
 
-                {/* Badges */}
+                {/* Badges - Updated for new schema (type instead of meeting_type) */}
                 <div className="mb-3 flex flex-wrap gap-2 items-center justify-between">
                   <div className="flex flex-wrap gap-2">
                     {/* Meeting Type Badge */}
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                        meeting.meeting_type === 'regular'
+                        meeting.type === 'regular'
                           ? 'bg-purple-100 text-purple-700'
                           : 'bg-green-100 text-green-700'
                       }`}
                     >
-                      {meeting.meeting_type === 'regular' ? '📅 정기' : '⚡ 즉흥'}
+                      {meeting.type === 'regular' ? '📅 정기' : '⚡ 즉흥'}
                     </span>
-
-                    {/* Casual Meeting Subtype Badge (only for casual meetings) */}
-                    {meeting.meeting_type === 'casual' && meeting.casual_meeting_type && (
-                      <span
-                        className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          meeting.casual_meeting_type === 'hobby'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-indigo-100 text-indigo-700'
-                        }`}
-                      >
-                        {meeting.casual_meeting_type === 'hobby' ? '🎨 취미' : '💬 토론'}
-                      </span>
-                    )}
 
                     {/* Purpose Badge */}
                     <span
@@ -182,40 +169,21 @@ function MeetingsPage() {
                     </span>
                   </div>
 
-                  {/* D-day (only for casual meetings not in past filter) */}
-                  {filter !== 'past' && meeting.meeting_type === 'casual' && (
+                  {/* D-day */}
+                  {filter !== 'past' && (
                     <span className="text-sm font-medium text-blue-600">
-                      {getDday(meeting.start_datetime)}
+                      {getDday(meeting.meeting_datetime)}
                     </span>
                   )}
                 </div>
 
                 <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  {meeting.location}
+                  {meeting.title || meeting.location}
                 </h3>
 
-                {/* DateTime Info */}
+                {/* DateTime Info - Updated to use meeting_datetime */}
                 <p className="text-gray-600 mb-4">
-                  {meeting.meeting_type === 'regular' ? (
-                    <>
-                      <span className="font-medium">
-                        매주{' '}
-                        {
-                          ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][
-                            meeting.recurrence_day_of_week
-                          ]
-                        }
-                      </span>
-                      {' '}
-                      <span>{meeting.recurrence_time}</span>
-                    </>
-                  ) : (
-                    <>
-                      {formatDate(meeting.start_datetime, 'yyyy년 MM월 dd일 HH:mm')}
-                      {' - '}
-                      {formatDate(meeting.end_datetime, 'HH:mm')}
-                    </>
-                  )}
+                  {formatDate(meeting.meeting_datetime, 'yyyy년 MM월 dd일 HH:mm')}
                 </p>
 
                 <div className="flex items-center justify-between text-sm">
