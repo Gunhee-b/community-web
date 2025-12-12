@@ -255,13 +255,28 @@ export const syncSocialUser = async (authUser) => {
       throw error
     }
 
-    if (!data.success) {
-      console.error('User sync failed:', data.error)
-      throw new Error(data.error || 'Failed to sync user')
+    // Handle the JSON response from the SQL function
+    // The function returns: { "id": "...", "username": "...", "fullName": "...", "avatarUrl": "...", "isNew": bool }
+    const profile = data
+
+    if (!profile || !profile.id) {
+      console.error('Profile ID missing in response:', profile)
+      throw new Error('Failed to sync user: Invalid response format')
     }
 
-    console.log('User sync successful:', data)
-    return data
+    console.log('User sync successful:', profile)
+
+    // Return in the format expected by handleOAuthCallback
+    return {
+      success: true,
+      user: {
+        id: profile.id,
+        username: profile.username,
+        full_name: profile.fullName,
+        avatar_url: profile.avatarUrl,
+      },
+      is_new: profile.isNew || false,
+    }
   } catch (error) {
     console.error('Sync social user error:', error)
     throw new Error(error.message || '사용자 정보 동기화 중 오류가 발생했습니다')
