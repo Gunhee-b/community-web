@@ -23,12 +23,13 @@ function AdminMeetingsPage() {
   const fetchMeetings = async () => {
     try {
       // Changed from 'offline_meetings' to 'meetings', host:users to host:profiles
+      // Fix: changed (count) to (id) - count doesn't exist in new schema
       let query = supabase
         .from('meetings')
         .select(`
           *,
           host:profiles!host_id(username),
-          participants:meeting_participants(count)
+          participants:meeting_participants(id)
         `)
 
       if (filter === 'upcoming') {
@@ -193,11 +194,11 @@ function AdminMeetingsPage() {
                     </td>
                     <td className="py-3 px-4">
                       <span className={`font-medium ${
-                        meeting.participants?.[0]?.count >= meeting.max_participants
+                        (meeting.participants?.length || 0) >= meeting.max_participants
                           ? 'text-red-600'
                           : 'text-blue-600'
                       }`}>
-                        {meeting.participants?.[0]?.count || 0} / {meeting.max_participants}명
+                        {meeting.participants?.length || 0} / {meeting.max_participants}명
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -248,7 +249,7 @@ function AdminMeetingsPage() {
           </p>
           <div className="bg-yellow-50 p-3 rounded-lg">
             <p className="text-sm text-yellow-800">
-              ⚠️ 참가자: {selectedMeeting?.participants?.[0]?.count || 0}명
+              ⚠️ 참가자: {selectedMeeting?.participants?.length || 0}명
             </p>
             <p className="text-sm text-yellow-800 mt-1">
               이 작업은 되돌릴 수 없으며, 모든 채팅 기록도 삭제됩니다.

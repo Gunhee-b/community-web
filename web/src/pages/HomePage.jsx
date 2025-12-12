@@ -38,12 +38,13 @@ function HomePage() {
       setVotingPeriod(votingData)
 
       // Fetch upcoming meetings (changed from 'offline_meetings' to 'meetings')
+      // Fix: changed (count) to (id) - count doesn't exist in new schema
       const { data: meetingsData } = await supabase
         .from('meetings')
         .select(`
           *,
           host:profiles!host_id(username),
-          participants:meeting_participants(count)
+          participants:meeting_participants(id)
         `)
         .eq('status', 'recruiting')
         .gte('meeting_datetime', new Date().toISOString())
@@ -203,13 +204,13 @@ function HomePage() {
                     {meeting.location}
                   </h3>
                   <p className="text-sm text-gray-600 mb-2">
-                    {formatDate(meeting.start_datetime, 'MM월 dd일 HH:mm')}
+                    {formatDate(meeting.meeting_datetime, 'MM월 dd일 HH:mm')}
                   </p>
                   <p className="text-sm text-gray-600">
                     호스트: {meeting.host?.username}
                   </p>
                   <p className="text-sm text-blue-600 font-medium mt-2">
-                    {meeting.participants?.[0]?.count || 0} /{' '}
+                    {meeting.participants?.length || 0} /{' '}
                     {meeting.max_participants}명 참여
                   </p>
                 </Link>

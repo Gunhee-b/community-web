@@ -29,12 +29,13 @@ function MeetingsPage() {
   const fetchMeetings = async () => {
     try {
       // Changed from 'offline_meetings' to 'meetings', and host:users to host:profiles
+      // Fix: changed (count) to (id) - count doesn't exist in new schema
       let query = supabase
         .from('meetings')
         .select(`
           *,
           host:profiles!host_id(username),
-          participants:meeting_participants(count)
+          participants:meeting_participants(id)
         `)
 
       if (filter === 'regular') {
@@ -222,7 +223,7 @@ function MeetingsPage() {
                     호스트: {meeting.host?.username}
                   </span>
                   <span className="font-medium text-blue-600">
-                    {meeting.participants?.[0]?.count || 0} /{' '}
+                    {meeting.participants?.length || 0} /{' '}
                     {meeting.max_participants}명
                   </span>
                 </div>
