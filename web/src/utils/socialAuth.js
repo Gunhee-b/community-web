@@ -255,8 +255,8 @@ export const syncSocialUser = async (authUser) => {
       throw error
     }
 
-    // Handle the JSON response from the SQL function
-    // The function returns: { "id": "...", "username": "...", "fullName": "...", "avatarUrl": "...", "isNew": bool }
+    // Handle the Table Row response from the SQL function (snake_case)
+    // The function returns: { "id": "...", "username": "...", "full_name": "...", "avatar_url": "...", "role": "...", "is_new": bool }
     const profile = data
 
     if (!profile || !profile.id) {
@@ -267,15 +267,17 @@ export const syncSocialUser = async (authUser) => {
     console.log('User sync successful:', profile)
 
     // Return in the format expected by handleOAuthCallback
+    // Profile is already in snake_case format from the DB
     return {
       success: true,
       user: {
         id: profile.id,
         username: profile.username,
-        full_name: profile.fullName,
-        avatar_url: profile.avatarUrl,
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
+        role: profile.role,
       },
-      is_new: profile.isNew || false,
+      is_new: profile.is_new || false,
     }
   } catch (error) {
     console.error('Sync social user error:', error)
